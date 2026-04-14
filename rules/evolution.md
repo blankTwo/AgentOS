@@ -7,6 +7,7 @@
 - 有明确步骤
 - 可被重复执行
 - 已被验证有效
+- 已记录最小证据：Trigger / Count / Validation / Scope
 
 ## skill -> rule
 满足全部条件时，允许从 skill 升级为 rule：
@@ -28,3 +29,14 @@
 - 为什么值得升级
 - 适用范围
 - 风险
+- 触发条件
+- 出现次数
+- 验证方式
+
+## Evidence Preference
+演化记录优先使用结构化字段，而不是只写主观判断：
+- Trigger: 在什么任务或场景下触发
+- Count: 已出现次数，尽量写明确数字
+- Validation: 通过什么验证证明有效
+- Scope: 适用于哪些项目/模块/边界
+- Candidate: 建议停留在 memory、升级为 skill，还是升级为 rule

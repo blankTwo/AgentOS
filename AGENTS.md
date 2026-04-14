@@ -29,6 +29,20 @@
 3. git 仓库名
 4. 若无法识别，则使用 `unknown-project`
 
+识别后必须做一次项目名归一化：
+- 转为小写
+- 空格与下划线统一转为 `-`
+- 去除首尾无意义符号
+- 仅保留适合作为文件名的字符
+
+若目录名属于母体/容器目录，而非真实项目名，例如：
+- `.codex`
+- `.config`
+- `.meta`
+- `workspace`
+
+则不得直接作为项目标识，必须继续向下使用 `package.json name` 或 git 仓库名判断。
+
 项目记忆文件路径：
 `memory/projects/{project}.md`
 
@@ -43,7 +57,6 @@
 
 优先根据以下信号判断：
 - React: package.json / src / hooks / jsx / tsx / react-router / zustand / react-query
-- Electron: electron / electron-builder / main process / preload / renderer
 - Node: express / koa / nest / scripts / server / drizzle / pg
 - Taro / Mini Program: taro / app.config / pages / cloud functions
 - Java / Spring: pom.xml / gradle / controller / service / mapper
@@ -52,9 +65,18 @@
 识别后加载对应 rule / skill：
 - React -> rules/frontend-react.md + skills/feature-react/
 - Node -> rules/backend-node.md + skills/api-change/
+- Taro / Mini Program -> rules/taro-miniapp.md + skills/bugfix/
+- Java / Spring -> skills/api-change/ + skills/bugfix/
+- Unknown -> skills/bugfix/
 - 通用 bug -> skills/bugfix/
 - 通用重构 -> skills/refactor/
 - 通用测试 -> skills/write-tests/
+
+若检测到多个技术栈：
+- 先确定主栈
+- 按主栈加载对应 rules
+- 再按任务需要补充其他 stack 的 rules / skills
+- 不因“可能相关”一次性加载全部 rules
 
 ---
 
@@ -64,13 +86,19 @@
 1. Detect Project
 2. Detect Stack
 3. Read Base Rules
-4. Select Matching Skills
-5. Load Memory
-6. For complex tasks, output a plan first
-7. Implement changes
-8. Validate
-9. Write memory
-10. Evaluate evolution
+4. Load Memory Summary
+5. Select Matching Skills
+6. Load Detailed Memory
+7. For complex tasks, output a plan first
+8. Implement changes
+9. Validate
+10. Write memory
+11. Evaluate evolution
+
+说明：
+- Memory Summary 用于快速读取项目摘要、特殊约束、主模式、已知坑点
+- Detailed Memory 用于在实现前补充读取相关决策、模式细节、历史修复经验
+- 不得在完全未读项目记忆摘要前直接选择 skill
 
 ---
 
@@ -117,7 +145,7 @@
 
 ## When Plan Is Mandatory
 遇到以下任务，必须先输出 plan：
-- 跨多个文件
+- 跨多个模块，或跨多个文件且存在行为联动
 - 涉及架构调整
 - 涉及状态管理
 - 涉及数据库或接口协议
@@ -158,6 +186,10 @@ plan 必须包含：
 - 存放该项目踩坑、决策、约束、模式
 - 禁止把其他项目业务写入当前项目文件
 
+Project Memory 至少应区分两类信息：
+- Summary: 供任务开始阶段快速加载的摘要信息
+- Detailed Records: 供实现前进一步读取的决策、坑点、模式、演化候选
+
 ---
 
 ## Evolution Policy
@@ -174,6 +206,13 @@ plan 必须包含：
 
 4. 若经验是一次性、强业务耦合、未验证：
    - 仅写入项目 memory，不升级
+
+所有演化判断必须尽量记录证据：
+- Trigger：在什么任务下触发
+- Count：已出现次数
+- Validation：如何验证有效
+- Scope：适用范围
+- Candidate：是否适合升级到 skill / rule
 
 ---
 

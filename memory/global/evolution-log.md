@@ -13,9 +13,9 @@
 
 ## Example
 - Date: 2026-04-14
-- Source Project: electron-client
-- Source Memory: memory/projects/electron-client.md
+- Source Project: react-admin
+- Source Memory: memory/projects/react-admin.md
 - Candidate Type: memory -> skill
-- Topic: packaging-signing-troubleshooting
+- Topic: stable-query-key
 - Reason: 多次重复出现，流程稳定
-- Result: promoted to skills/electron-packaging
+- Result: promoted to skills/query-key-review
