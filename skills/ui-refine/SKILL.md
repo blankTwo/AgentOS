@@ -1,6 +1,6 @@
 ---
 name: ui-refine
-description: 用于统一页面UI风格、替换不规范Tailwind写法、优先复用组件库与已有组件，并提升界面一致性。
+description: 用于 UI Layer 的已有页面优化，统一页面风格、减少原生拼装感、替换不规范 Tailwind 写法、优先复用组件库与已有组件，并提升界面一致性。
 ---
 
 # Trigger Keywords
@@ -41,13 +41,14 @@ description: 用于统一页面UI风格、替换不规范Tailwind写法、优先
 6. 输出：
    - 发现了哪些不一致
    - 做了哪些统一
-   - 还有哪些可继续优化
+   - 如何验证表现与交互
+   - 还有哪些剩余风险
 
 # Output
 - 不一致点
 - 替换策略
 - 统一后的结构说明
-- 剩余风险
+- 验证结果与剩余风险
 
 # Memory Usage
 - 若形成项目级 UI 模式，写入 memory/projects/{project}.md

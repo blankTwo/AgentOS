@@ -1,7 +1,7 @@
 # Codex Mother System v2
 
 ## Mission
-你运行在一个“单母体、多项目复用”的开发系统中。
+你运行在一个“单母体、多项目复用”的全栈开发系统中。
 目标是：
 - 复用统一规则与技能
 - 避免不同项目之间的上下文污染
@@ -11,12 +11,14 @@
 ---
 
 ## Core Principles
-- 优先最小改动
+- 优先完整解决核心问题，同时控制影响范围
 - 优先可验证方案
 - 优先复用已有 rules 与 skills
 - 复杂任务必须先 plan 再执行
 - 不根据猜测直接修改代码
 - 经验必须沉淀，但沉淀必须隔离
+- skill 按任务层选择，技术栈作为实现上下文，不为每个技术栈无限新增 skill
+- 不用临时占位、半成品或 MVP 式方案替代系统性调整
 
 ---
 
@@ -53,56 +55,150 @@
 ---
 
 ## Stack Detection
-开始任务时，还必须识别技术栈。
+开始任务时，还必须识别技术栈。技术栈用于确定实现约束、代码风格和可加载 rules，不直接决定 skill。
 
 优先根据以下信号判断：
-- React: package.json / src / hooks / jsx / tsx / react-router / zustand / react-query
+- React / Vue / Svelte: package.json / src / jsx / tsx / vue / svelte / router / state libraries
 - Node: express / koa / nest / scripts / server / drizzle / pg
 - Taro / Mini Program: taro / app.config / pages / cloud functions
 - Java / Spring: pom.xml / gradle / controller / service / mapper
+- Go: go.mod / cmd / internal / pkg
+- Python: pyproject.toml / requirements.txt / fastapi / django / flask
+- Rust: Cargo.toml / src / crates
 - Unknown: 无法识别时走通用流程
 
-识别后加载对应 rule / skill：
-- React -> rules/frontend-react.md + skills/feature-react/
-- Node -> rules/backend-node.md + skills/api-change/
-- Taro / Mini Program -> rules/taro-miniapp.md + skills/bugfix/
-- Java / Spring -> skills/api-change/ + skills/bugfix/
-- Unknown -> skills/bugfix/
-- 通用 bug -> skills/bugfix/
-- 通用重构 -> skills/refactor/
-- 通用测试 -> skills/write-tests/
+识别后按需加载对应 rules：
+- React -> rules/frontend-react.md
+- Node -> rules/backend-node.md
+- Taro / Mini Program -> rules/taro-miniapp.md
+- 其他技术栈若暂无专属 rule，优先遵循通用 rules 与项目现有代码模式
 
 若检测到多个技术栈：
-- 先确定主栈
+- 先确定主栈与本次任务实际影响的栈
 - 按主栈加载对应 rules
-- 再按任务需要补充其他 stack 的 rules / skills
+- 再按任务需要补充其他 stack 的 rules
 - 不因“可能相关”一次性加载全部 rules
+- 不因为出现新技术栈就新增 stack-specific skill
+
+---
+
+## Task Layer Detection
+开始任务时，必须识别任务层。skill 按任务层选择，技术栈只作为实现上下文。
+
+按以下任务层判断：
+- UI Layer: 页面、组件、布局、样式、交互、响应式、视觉一致性
+- API Layer: 接口、请求参数、响应结构、鉴权、错误码、服务逻辑
+- Data Layer: schema、migration、查询、事务、缓存、数据一致性
+- Integration Layer: 前后端联动、第三方服务、SDK、webhook、跨系统协议
+- Runtime Layer: 环境变量、构建、部署、脚本、依赖、运行时配置
+- Test Layer: 新增测试、修复测试、测试覆盖、测试基础设施
+- Bugfix Layer: 异常行为、报错、状态不一致、边界条件失败、回归问题
+- Refactor Layer: 结构优化、重复消除、职责拆分、性能或可维护性改进
+
+任务层到 skill 的默认映射：
+- UI Layer -> skills/feature-ui/ 或 skills/ui-refine/
+- API Layer -> skills/api-change/
+- Data Layer -> skills/api-change/ + skills/bugfix/ 或 skills/refactor/，按任务性质选择
+- Integration Layer -> skills/api-change/ + skills/bugfix/，按任务性质选择
+- Runtime Layer -> skills/bugfix/ 或 skills/refactor/
+- Test Layer -> skills/write-tests/
+- Bugfix Layer -> skills/bugfix/
+- Refactor Layer -> skills/refactor/
+
+若一个任务跨多个任务层：
+- 先确定主任务层
+- 再按影响范围补充其他任务层 skill
+- 不为了“可能相关”一次性加载所有 skills
+
+---
+
+## Mandatory Gates
+每次任务必须经过以下 gates。gate 是强制判断点，skill 是执行工具。
+
+### Context Gate
+- Detect Project
+- Detect Stack
+- Detect Task Layer
+- Read Base Rules
+- Load Memory Summary
+
+输出要求：
+- 当前项目标识
+- 当前技术栈与影响栈
+- 当前主任务层与辅助任务层
+- 已加载的 rules / memory summary
+
+简单任务可以简短完成 Context Gate；复杂、跨项目、跨任务层或依赖项目约束的任务，必须先读取 memory summary 再选择 skill。
+
+### Evidence Gate
+以下任务必须先收集证据再下结论：
+- bugfix / diagnosis / incident / regression
+- 行为与预期不一致
+- 涉及架构、数据、权限、性能等判断
+- 涉及架构选型、数据模型、权限策略、性能瓶颈、跨层契约等重要技术决策
+
+证据可以包括：
+- 代码位置
+- 日志 / 报错 / 命令输出
+- 复现路径
+- 测试结果
+- 接口返回 / 数据样本
+- 截图或可观察 UI 行为
+
+若证据不足，必须明确哪些是已证实、哪些是推断，不得基于猜测直接修改代码。
+
+### Risk Gate
+评估任务风险并确定缓解策略。
+
+Process Safeguards:
+- 是否需要 plan
+- 是否建议 git worktree 隔离
+- 是否需要回滚预案
+
+Quality Assurance:
+- 是否建议或必须 TDD
+- 是否需要 review gate
+- 是否需要更高验证强度
+
+### Validation Gate
+任务完成前必须说明：
+- 验证什么
+- 怎么验证
+- 验证结果
+- 还剩什么风险
+
+如果无法执行验证，必须说明原因，并给出最小可行验证方案。
+
+### Memory Gate
+任务结束时必须判断：
+- 是否需要写入 project memory
+- 是否需要写入 global memory
+- 是否只是一次性经验，不应沉淀
+- 是否只是演化候选，暂不升级为 skill / rule
 
 ---
 
 ## Execution Flow
 每次任务按以下顺序执行：
 
-1. Detect Project
-2. Detect Stack
-3. Read Base Rules
-4. Load Memory Summary
-5. Select Matching Skills
-6. Load Detailed Memory
-7. For complex tasks, output a plan first
-8. Implement changes
-9. Validate
-10. Write memory
-11. Evaluate evolution
+1. Context Gate
+2. Evidence Gate
+3. Risk Gate
+4. Select Matching Skills
+5. Load Detailed Memory
+6. Implement changes
+7. Validation Gate
+8. Memory Gate
+9. Evaluate evolution candidates
 
 说明：
 - Memory Summary 用于快速读取项目摘要、特殊约束、主模式、已知坑点
 - Detailed Memory 用于在实现前补充读取相关决策、模式细节、历史修复经验
-- 不得在完全未读项目记忆摘要前直接选择 skill
+- Skills are selected after gates, not before gates
 
 ---
 
-## UI Task Routing
+## UI Layer Routing
 若任务包含以下意图：
 - 新增页面
 - 新建页面
@@ -119,9 +215,9 @@
 2. 优先读取 `rules/ui-consistency.md`
 3. 如属于新建页面、新建功能 UI、缺少参考页面时的 0 到 1 UI 生成，优先选择 `skills/feature-ui/`
 4. 如属于 UI 优化、风格统一、去除原生拼装感，优先选择 `skills/ui-refine/`
-5. 如属于前端新页面任务，在使用 `skills/feature-ui/` 的同时，组合使用：
+5. 如属于 UI 新建任务，在使用 `skills/feature-ui/` 的同时，组合使用：
    - `skills/feature-ui/`
-   - 当前项目技术栈对应的实现 skill
+   - 当前项目技术栈对应的实现约束或现有实现模式
 
 新增页面时，默认要求：
 - 先对齐已有页面风格
@@ -147,7 +243,9 @@
 
 ---
 
-## When Plan Is Mandatory
+## Risk Gate Details
+
+### When Plan Is Mandatory
 遇到以下任务，必须先输出 plan：
 - 跨多个模块，或跨多个文件且存在行为联动
 - 涉及架构调整
@@ -163,6 +261,44 @@ plan 必须包含：
 - 修改步骤
 - 风险点
 - 验证方式
+
+### When Worktree Is Recommended
+遇到以下任务，建议使用 git worktree 隔离：
+- 大规模重构
+- 架构调整
+- 依赖升级
+- 数据库迁移
+- 需要隔离实验性修改
+- 当前工作区存在用户未提交改动，且本次任务可能产生冲突
+- 多 Agent 并行且可能修改相同文件、共享依赖或需要隔离产物
+
+以下任务默认不建议使用 worktree：
+- 小型文档修改
+- 单文件或少量文件的低风险修改
+- UI 样式微调
+- 简单配置修改
+- 用户明确要求在当前工作区直接修改
+
+### When Rollback Plan Is Required
+遇到以下任务，必须说明回滚或恢复方式：
+- 数据删除、迁移、批量更新
+- 修改鉴权、支付、权限、生产配置
+- 可能影响已有用户数据或线上运行环境
+- 依赖升级或构建链路调整
+
+### When TDD Is Recommended
+TDD 判断遵循 `rules/testing.md`：
+- 核心业务逻辑、数据处理、复杂边界条件优先测试先行
+- bugfix 在确认根因后优先补最小回归测试
+- UI 视觉、文档、一次性脚本可用验证说明替代
+
+### When Review Gate Is Recommended
+遇到以下任务，建议进行 review gate：
+- 跨任务层的全栈改动
+- 权限、数据、支付、安全相关改动
+- 大规模重构或架构调整
+- 发布前关键变更
+- 修改 rules / skills / AGENTS 等母体核心文件
 
 ---
 
@@ -201,6 +337,7 @@ Project Memory 至少应区分两类信息：
 
 1. 这次是否产生了项目经验？
    - 是：写入 memory/projects/{project}.md
+   - 否：不要为了“看起来有沉淀”强行写 memory
 
 2. 这次经验是否重复出现 >= 2 次，且步骤明确？
    - 是：提议升级为 skill
@@ -210,6 +347,9 @@ Project Memory 至少应区分两类信息：
 
 4. 若经验是一次性、强业务耦合、未验证：
    - 仅写入项目 memory，不升级
+
+5. 若经验只是临时操作、普通成功路径、未形成明确模式：
+   - 不写 memory，不升级
 
 所有演化判断必须尽量记录证据：
 - Trigger：在什么任务下触发
@@ -249,13 +389,14 @@ Project Memory 至少应区分两类信息：
 - 容易回滚
 - 不扩大影响面
 - 便于测试验证
+- 完整解决本次目标，而不是只交付临时可用状态
 
 ---
 
 ## Default Completion Checklist
 任务结束时，检查：
-- 是否遵守了 rules
-- 是否使用了正确 skill
-- 是否进行了验证
-- 是否需要写 memory
-- 是否有可升级的经验
+- Context Gate 是否完成：项目、技术栈、任务层、memory summary 是否明确
+- Evidence Gate 是否满足：判断和修复是否有证据
+- Risk Gate 是否完成：plan / worktree / TDD / review / rollback 是否判断过
+- Validation Gate 是否完成：验证方式、验证结果、剩余风险是否说明
+- Memory Gate 是否完成：是否需要写 memory，是否只是演化候选
