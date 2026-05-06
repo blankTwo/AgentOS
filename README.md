@@ -1,4 +1,4 @@
-# Codex Mother System v2
+# Codex Mother System
 
 一个用于多项目复用的 Codex 规则与技能母体系统。
 
@@ -14,7 +14,7 @@
 - 前端、后端、数据、测试、重构等任务各自散落，缺少统一入口
 - 不同项目的业务细节混在一起，长期使用后上下文污染越来越严重
 
-Codex Mother System v2 的目标是把这些问题收束到一套稳定机制里：
+Codex Mother System 的目标是把这些问题收束到一套稳定机制里：
 
 - 用统一入口识别项目、技术栈和任务层
 - 用 Mandatory Gates 保证上下文、证据、风险、验证和记忆判断
@@ -74,6 +74,8 @@ Codex Mother System v2 的目标是把这些问题收束到一套稳定机制里
 
 ## 目录结构
 
+在本仓库中，母体文件位于仓库根目录：
+
 ```text
 .
 ├── AGENTS.md
@@ -101,13 +103,68 @@ Codex Mother System v2 的目标是把这些问题收束到一套稳定机制里
     └── projects/
 ```
 
+放到具体项目中使用时，推荐放在目标项目的 `.codex/` 目录：
+
+```text
+your-project/
+├── .codex/
+│   ├── AGENTS.md
+│   ├── rules/
+│   ├── skills/
+│   └── memory/
+└── ...
+```
+
 ## 快速开始
 
-1. 保持仓库中的 `AGENTS.md`、`rules/`、`skills/` 和 `memory/` 完整存在。
-2. 在 Codex 或兼容的 AI Coding Agent 环境中使用这套母体规则。
-3. 让 `AGENTS.md` 作为总控入口，先识别项目、技术栈、任务层，再选择对应 skill。
-4. 把项目特定信息写入 `memory/projects/{project}.md`。
-5. 重复出现、已验证、有边界的经验，再考虑从 memory 升级为 skill 或 rule。
+### 方式一：复制到目标项目 `.codex/`
+
+适合大多数项目。把本仓库中的核心文件放到目标项目的 `.codex/` 目录下：
+
+```text
+.codex/
+├── AGENTS.md
+├── rules/
+├── skills/
+└── memory/
+```
+
+步骤：
+
+1. 在目标项目根目录创建 `.codex/`。
+2. 将本仓库的 `AGENTS.md`、`rules/`、`skills/`、`memory/` 放入目标项目 `.codex/`。
+3. 在 Codex 或兼容的 AI Coding Agent 中打开目标项目。
+4. Agent 会通过 `.codex/AGENTS.md` 识别项目、技术栈、任务层，并按需加载 rules / skills / memory。
+
+### 方式二：直接把仓库克隆为 `.codex`
+
+如果你希望保留 Git 更新能力，也可以在目标项目根目录直接克隆为 `.codex`：
+
+```bash
+git clone <this-repo-url> .codex
+```
+
+之后目标项目结构类似：
+
+```text
+your-project/
+├── .codex/
+│   ├── AGENTS.md
+│   ├── rules/
+│   ├── skills/
+│   └── memory/
+├── src/
+├── package.json
+└── ...
+```
+
+如果 `.codex/` 本身是一个独立 Git 仓库，请根据你的团队策略决定是否把它作为 submodule、subtree，或直接加入目标项目版本管理。
+
+### 使用后会发生什么
+
+- `AGENTS.md` 作为总控入口，先识别项目、技术栈、任务层，再选择对应 skill
+- 项目特定信息会写入 `.codex/memory/projects/{project}.md`
+- 重复出现、已验证、有边界的经验，可以从 memory 升级为 skill 或 rule
 
 ## 常见任务如何路由
 

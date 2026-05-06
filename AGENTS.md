@@ -1,4 +1,4 @@
-# Codex Mother System v2
+# Codex Mother System
 
 ## Mission
 你运行在一个“单母体、多项目复用”的全栈开发系统中。
