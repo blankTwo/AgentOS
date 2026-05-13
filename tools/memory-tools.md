@@ -95,6 +95,18 @@ python scripts/memory-tools.py record-item \
   --validation "Verified login click enters dashboard."
 ```
 
+Global user preferences can be recorded as `note` items with `--project "*"` after Memory Gate confirms they are stable:
+
+```bash
+python scripts/memory-tools.py record-item \
+  --project "*" \
+  --type note \
+  --title "User prefers production-grade implementation" \
+  --summary "User prefers complete, public-ready, maintainable solutions over MVP or temporary implementations." \
+  --tags preference collaboration quality \
+  --validation "Confirmed by repeated user instructions across system design tasks."
+```
+
 ---
 
 ## Record A Session

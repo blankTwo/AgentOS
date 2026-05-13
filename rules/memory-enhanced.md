@@ -78,6 +78,7 @@ Record high-signal memories:
 - UI layout patterns and viewport fixes
 - Validation failures and final resolutions
 - Reusable project-specific constraints
+- Stable user preferences and collaboration habits
 - Candidate skills with evidence
 
 Use memory item types:
@@ -104,6 +105,42 @@ Do not record:
 - Business details from another project
 
 Memory must be curated knowledge, not a log dump.
+
+---
+
+## Preference Recording
+
+User preferences are memory, but they must be treated more carefully than task lessons.
+
+Stable preferences should be written to Markdown first:
+
+```text
+memory/global/preferences.md
+```
+
+SQLite can also record them for retrieval, using `--type note` and `--project "*"`:
+
+```bash
+python scripts/memory-tools.py record-item \
+  --project "*" \
+  --type note \
+  --title "User prefers production-grade implementation" \
+  --summary "User repeatedly prefers complete, public-ready, maintainable solutions over MVP or temporary implementations." \
+  --tags preference collaboration quality \
+  --validation "Observed across multiple system design and implementation tasks."
+```
+
+Record a user preference only when:
+- The user explicitly states it as a lasting preference, or it appears consistently across tasks
+- It affects future collaboration or implementation choices
+- It is not tied to one project's private business logic
+- It does not include secrets, credentials, private data, or sensitive business context
+
+Do not record:
+- One-off instructions
+- Temporary task constraints
+- Guesses about user taste
+- Project-specific business rules as global preference
 
 ---
 
