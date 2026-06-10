@@ -17,7 +17,7 @@
 Codex Mother System 的目标是把这些问题收束到一套稳定机制里：
 
 - 用统一入口识别项目、技术栈和任务层
-- 用 Mandatory Gates 保证上下文、证据、风险、验证和记忆判断
+- 用 Mandatory Gates 保证上下文、证据、能力现状、风险、计划、验证和记忆判断
 - 用 task-layer skills 承接 UI、API、Bugfix、Refactor、Test 等任务
 - 用 project memory 隔离不同项目的专属上下文
 - 用 evolution 机制把重复经验从 memory 沉淀为 skill，再升级为 rule
@@ -195,17 +195,19 @@ your-project/
 
 ## 工作流程
 
-系统不鼓励“看到任务就直接调用某个 skill”。每次任务先经过 5 个 Mandatory Gates：
+系统不鼓励“看到任务就直接调用某个 skill”。每次任务先经过 Mandatory Gates：
 
 - `Context Gate`：识别当前项目、技术栈、任务层和项目记忆
 - `Evidence Gate`：涉及 bug、架构、数据、权限、性能等判断时必须先有证据
-- `Risk Gate`：判断是否需要 plan、TDD、worktree、rollback、review 或 performance check
+- `Capability Discovery Gate`：对实现、新增、接入、支持类需求，先判断能力链路是完整存在、部分存在、断链存在还是不存在
+- `Risk Gate`：判断 TDD、worktree、rollback、review、performance check 等风险策略
+- `Planning Gate`：按 L1-L4 任务规模决定直接执行还是先输出 plan
 - `Validation Gate`：完成前说明验证方式、验证结果、失败处理和剩余风险
 - `Memory Gate`：判断是否写入 project memory，是否只是 candidate，是否不应沉淀
 
 简单任务可以简短完成这些判断；复杂任务必须完整经过 gate。
 
-性能不单独作为第 6 个 gate，而是在 `Risk Gate` 和 `Validation Gate` 中作为专项检查处理。
+性能不单独作为独立 gate，而是在 `Risk Gate` 和 `Validation Gate` 中作为专项检查处理。
 
 ## Hermes-like Memory Backend
 

@@ -174,11 +174,29 @@
 
 若证据不足，必须明确哪些是已证实、哪些是推断，不得基于猜测直接修改代码。
 
+### Capability Discovery Gate
+当用户需求属于“实现 / 新增 / 接入 / 支持 / 补齐 / 改造”某项能力时，进入实现前必须先判断该能力在当前项目中的现状。
+
+检查顺序：
+1. 先查 memory summary 和相关 memory 记录；若 SQLite memory 可用且任务像历史功能或历史问题，按 `rules/memory-enhanced.md` 检索。
+2. 再查当前项目代码，确认前端入口、API 调用、后端接口、服务逻辑、数据模型、鉴权/状态流和端到端链路。
+3. 输出能力状态结论与证据，不得只根据关键词或文件名下结论。
+
+能力状态分为：
+- 完整存在：前端、API、后端、数据/状态链路和主路径验证证据基本完整。
+- 部分存在：只存在前端、后端、数据模型或某个局部能力，尚未形成完整链路。
+- 断链存在：相关代码都能找到，但请求/响应、鉴权、状态流、数据写入或页面入口没有打通。
+- 不存在：memory 和当前代码中都没有成型能力。
+- 未确认：证据不足以判断完整性。
+
+Planning 约束：
+- 只有“完整存在 + 本次为低风险局部修改”才可以按 L1 直接执行。
+- 部分存在、断链存在、不存在或未确认，不得按 L1 处理，必须进入 Planning Gate 判断。
+
 ### Risk Gate
 评估任务风险并确定缓解策略。
 
 Process Safeguards:
-- 是否需要 plan
 - 是否建议 git worktree 隔离
 - 是否需要回滚预案
 
@@ -187,6 +205,32 @@ Quality Assurance:
 - 是否需要 review gate
 - 是否需要更高验证强度
 - 是否需要 performance check
+
+Risk Gate 的结论必须输入 Planning Gate，用于决定执行模式和验证强度。
+
+### Planning Gate
+进入实现前，必须根据能力状态和任务规模决定：直接执行，还是先输出 plan。
+
+任务规模分级：
+- L1 单点低风险修改：单文件或少量局部修改，不改变接口、数据、权限、状态流或跨模块行为。
+- L2 模块内多文件修改：同一模块内多个文件联动，影响局部功能但不改变跨层契约。
+- L3 跨模块或跨层链路：前后端联动、状态管理、接口契约、业务流程、第三方服务或多模块协作。
+- L4 架构/数据/权限/发布级变更：架构调整、数据模型或迁移、鉴权权限、支付、安全、生产配置、构建发布链路或 Agent OS 核心规则变化。
+
+执行模式：
+- L1：可直接执行，但仍需说明验证方式。
+- L2：先输出简短 plan，再执行。
+- L3：必须先输出完整 plan，再执行。
+- L4：必须先输出完整 plan，并判断 TDD、rollback、review gate、worktree 和 performance check。
+
+plan 必须包含：
+- 目标
+- 影响范围
+- 修改步骤
+- 风险点
+- 验证方式
+
+若任务规模无法确认，按更高一级处理；不得因为需求描述简短就默认 L1。
 
 ### Validation Gate
 任务完成前必须说明：
@@ -273,13 +317,15 @@ Quality Assurance:
 
 1. Context Gate
 2. Evidence Gate
-3. Risk Gate
-4. Select Matching Skills
-5. Load Detailed Memory
-6. Implement changes
-7. Validation Gate
-8. Memory Gate
-9. Evaluate evolution candidates
+3. Capability Discovery Gate（仅在功能/能力类需求触发）
+4. Risk Gate
+5. Planning Gate
+6. Select Matching Skills
+7. Load Detailed Memory
+8. Implement changes
+9. Validation Gate
+10. Memory Gate
+11. Evaluate evolution candidates
 
 说明：
 - Memory Summary 用于快速读取项目摘要、特殊约束、主模式、已知坑点
@@ -340,8 +386,10 @@ Quality Assurance:
 
 ## Risk Gate Details
 
-### When Plan Is Mandatory
-遇到以下任务，必须先输出 plan：
+### When Planning Gate Must Escalate
+遇到以下任务，Planning Gate 至少按 L3 或 L4 处理，必须先输出 plan：
+- 新增核心业务能力，或修改核心业务流程，例如登录、支付、权限、数据同步
+- 能力状态为部分存在、断链存在、不存在或未确认
 - 跨多个模块，或跨多个文件且存在行为联动
 - 涉及架构调整
 - 涉及状态管理
@@ -349,13 +397,6 @@ Quality Assurance:
 - 涉及打包发布流程
 - 涉及性能优化
 - 涉及问题根因不明确的 bug
-
-plan 必须包含：
-- 目标
-- 影响范围
-- 修改步骤
-- 风险点
-- 验证方式
 
 ### When Worktree Is Recommended
 遇到以下任务，建议使用 git worktree 隔离：
