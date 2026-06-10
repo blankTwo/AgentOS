@@ -234,9 +234,9 @@ plan 必须包含：
 若任务规模无法确认，按更高一级处理；不得因为需求描述简短就默认 L1。
 
 ### Agent Runtime Gate
-当任务需要跨步骤、跨文件、跨层或跨回合持续推进时，必须判断是否记录 Agent Runtime 状态。
+当任务需要跨步骤、跨文件、跨层或跨回合持续推进时，必须判断是否使用 Agent Runtime 控制器并记录 Agent Runtime 状态。
 
-Agent Runtime 是显式运行态，不是后台自动代理。它用于把目标、任务、观察、能力链路、策略决策、验证结果、恢复点和演化审查写入 SQLite runtime tables，便于后续任务恢复上下文和审查执行链路。
+Agent Runtime 是显式运行态，不是后台自动代理。它用于扫描能力链路、评估策略、选择下一步、规划验证、规划恢复，并把目标、任务、观察、能力链路、策略决策、验证结果、恢复点和演化审查写入 SQLite runtime tables，便于后续任务恢复上下文和审查执行链路。
 
 触发条件：
 - L2 及以上任务
@@ -255,7 +255,14 @@ Agent Runtime 是显式运行态，不是后台自动代理。它用于把目标
 - `recovery`：记录恢复策略、影响文件和回滚依据
 - `improvement`：记录受控演化候选，不自动升级 skill/rule/AGENTS
 
-L1 简单任务可不写 Runtime，但仍必须完成验证说明。L3/L4 任务必须至少记录 goal/task、policy、verification；若涉及能力链路或高风险变更，还必须记录 capability 和 recovery。
+控制器要求：
+- 能力类需求优先运行 `runtime-scan-capability` 或执行等价扫描，形成 capability 状态。
+- L2 及以上任务运行 `runtime-evaluate-policy` 或执行等价策略评估，形成 plan/TDD/review/rollback/worktree/performance 决策。
+- 长任务、多任务或跨回合任务运行 `runtime-next` 或执行等价 next-action 判断。
+- L2 及以上任务运行 `runtime-plan-verification` 或执行等价验证编排，形成验证清单。
+- 高风险任务运行 `runtime-plan-recovery` 或执行等价恢复规划，形成恢复策略。
+
+L1 简单任务可不写 Runtime，但仍必须完成验证说明。L3/L4 任务必须至少记录 goal/task、policy、verification；若涉及能力链路或高风险变更，还必须记录 capability 和 recovery。若 runtime CLI 不可用，必须在 final 中说明已执行的等价人工判断和缺失的结构化记录。
 
 ### Validation Gate
 任务完成前必须说明：

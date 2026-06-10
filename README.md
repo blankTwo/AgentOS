@@ -106,8 +106,11 @@ Codex Agent OS 的目标是把这些问题收束到一套稳定机制里：
     ├── global/
     └── projects/
 ├── scripts/
+│   ├── agent-runtime.py
+│   ├── codex_store.py
 │   └── memory-tools.py
 └── tools/
+    ├── agent-runtime.md
     └── memory-tools.md
 ```
 
@@ -146,7 +149,7 @@ your-project/
 1. 在目标项目根目录创建 `.codex/`。
 2. 将本仓库的全部内容放入目标项目 `.codex/`，至少包含 `AGENTS.md`、`rules/`、`skills/`、`memory/`、`scripts/` 和 `tools/`。
 3. 在 Codex 或兼容的 AI Coding Agent 中打开目标项目。
-4. Agent 会通过 `.codex/AGENTS.md` 识别项目、技术栈、任务层，并按需加载 rules / skills / memory；SQLite memory 工具由 `.codex/scripts/memory-tools.py` 提供。
+4. Agent 会通过 `.codex/AGENTS.md` 识别项目、技术栈、任务层，并按需加载 rules / skills / memory；SQLite memory 工具由 `.codex/scripts/memory-tools.py` 提供，Agent Runtime 控制器由 `.codex/scripts/agent-runtime.py` 提供。
 
 ### 方式二：直接把仓库克隆为 `.codex`
 
@@ -213,21 +216,23 @@ your-project/
 
 ## Codex Agent OS Runtime
 
-Codex Agent OS Runtime 是显式运行态，用 SQLite 记录任务推进过程中的关键状态。它不是后台常驻大脑，不会自动改代码、自动升级规则或自动写长期记忆；它只在 gate 和执行过程中由 Agent 显式写入可审查记录。
+Codex Agent OS Runtime 是显式运行态，用 SQLite 记录任务推进过程中的关键状态，并提供轻量控制器来扫描能力链路、评估策略、选择下一步、规划验证和规划恢复。它不是后台常驻大脑，不会自动改代码、自动升级规则或自动写长期记忆；它只在 gate 和执行过程中由 Agent 显式运行并写入可审查记录。
+
+Runtime 命令统一从 `scripts/agent-runtime.py` 执行；`scripts/memory-tools.py` 只负责记忆检索、沉淀、导入和统计。
 
 Runtime 补齐 10 个核心 Agent 能力：
 
 | 能力 | 记录位置 | 作用 |
 | --- | --- | --- |
 | Goal Runtime | `agent_goals` | 记录目标、阶段、成功标准和完成证据 |
-| Autonomous Observe Loop | `agent_observations` | 记录文件、测试、构建、日志、用户反馈等观察信号 |
-| Planner / Executor Separation | `agent_tasks.assigned_role` | 区分 planner、executor、reviewer、verifier、memory-recorder |
-| Capability Graph | `capability_nodes` / `capability_links` | 判断能力是完整、半套、断链、不存在还是未确认 |
-| Durable Task Queue | `agent_tasks` | 持久化任务队列、状态、阻塞点和计划 |
-| Policy Engine | `policy_decisions` | 记录是否 plan、TDD、review、rollback、worktree、performance check |
+| Autonomous Observe Loop | `agent_observations` / `runtime-scan-capability` | 记录文件、测试、构建、日志、用户反馈等观察信号 |
+| Planner / Executor Separation | `agent_tasks.assigned_role` / `runtime-next` | 区分 planner、executor、reviewer、verifier、memory-recorder |
+| Capability Graph | `capability_nodes` / `capability_links` / `runtime-scan-capability` | 判断能力是完整、半套、断链、不存在还是未确认 |
+| Durable Task Queue | `agent_tasks` / `runtime-next` | 持久化任务队列、状态、阻塞点和计划 |
+| Policy Engine | `policy_decisions` / `runtime-evaluate-policy` | 评估是否 plan、TDD、review、rollback、worktree、performance check |
 | Memory Intelligence | `memory_items` / `skill_candidates` / `improvement_reviews` | 检索和沉淀经验，但不自动自我升级 |
-| Verification Orchestrator | `verification_runs` | 记录验证范围、命令、结果和证据 |
-| Recovery / Rollback System | `recovery_points` | 记录恢复策略、影响文件和回滚依据 |
+| Verification Orchestrator | `verification_runs` / `runtime-plan-verification` | 规划并记录验证范围、命令、结果和证据 |
+| Recovery / Rollback System | `recovery_points` / `runtime-plan-recovery` | 规划并记录恢复策略、影响文件和回滚依据 |
 | Self-Improvement Governance | `improvement_reviews` | 记录演化候选、审查状态和边界 |
 
 Runtime 触发原则：
@@ -240,13 +245,23 @@ Runtime 触发原则：
 常用命令：
 
 ```bash
-python scripts/memory-tools.py runtime-record --kind goal --project my-project --id goal-1 --objective "Implement phone login" --success-criteria "Phone login works end to end" --current-phase planning
+python scripts/agent-runtime.py runtime-record --kind goal --project my-project --id goal-1 --objective "Implement phone login" --success-criteria "Phone login works end to end" --current-phase planning
 
-python scripts/memory-tools.py runtime-record --kind capability --project my-project --name phone-login --capability-status broken-chain --frontend "Login form exists" --api "API call missing" --backend "Endpoint unconfirmed" --data-state "Phone field unconfirmed" --verification "No end-to-end evidence" --evidence "Capability Discovery Gate result"
+python scripts/agent-runtime.py runtime-record --kind capability --project my-project --name phone-login --capability-status broken-chain --frontend "Login form exists" --api "API call missing" --backend "Endpoint unconfirmed" --data-state "Phone field unconfirmed" --verification "No end-to-end evidence" --evidence "Capability Discovery Gate result"
 
-python scripts/memory-tools.py runtime-record --kind policy --project my-project --goal-id goal-1 --decision-type plan --decision "full-plan-required" --rationale "Capability is broken-chain and task is L3" --evidence "Capability discovery result"
+python scripts/agent-runtime.py runtime-record --kind policy --project my-project --goal-id goal-1 --decision-type plan --decision "full-plan-required" --rationale "Capability is broken-chain and task is L3" --evidence "Capability discovery result"
 
-python scripts/memory-tools.py runtime-summary --project my-project
+python scripts/agent-runtime.py runtime-scan-capability --project my-project --name phone-login --term phone login --record
+
+python scripts/agent-runtime.py runtime-evaluate-policy --project my-project --scale L3 --capability-status broken-chain --task-layer Integration API --signal auth --record
+
+python scripts/agent-runtime.py runtime-plan-verification --project my-project --task-layer Integration API --scale L3 --files src/pages/Login.tsx server/auth.ts --record
+
+python scripts/agent-runtime.py runtime-plan-recovery --project my-project --files src/pages/Login.tsx server/auth.ts --checkpoint HEAD --record
+
+python scripts/agent-runtime.py runtime-next --project my-project --advance
+
+python scripts/agent-runtime.py runtime-summary --project my-project
 ```
 
 ## Codex Agent OS Memory Backend
@@ -355,7 +370,7 @@ python scripts/memory-tools.py candidate-upsert \
 边界：
 
 - `memory/index.db` 是本地索引，已被 `.gitignore` 忽略
-- `memory/schema.sql`、`scripts/memory-tools.py`、`tools/memory-tools.md` 可以提交和审查
+- `memory/schema.sql`、`scripts/memory-tools.py`、`scripts/agent-runtime.py`、`scripts/codex_store.py`、`tools/memory-tools.md`、`tools/agent-runtime.md` 可以提交和审查
 - Markdown memory 仍是人类可读、Git 可审查的主要记忆层
 - Codex Agent OS 没有后台自主记忆大脑，不会自动读取完整聊天记录或自动把对话写入长期记忆；Runtime 记录也必须由 Agent 在任务过程中显式写入
 - 用户偏好只有在明确表达为长期偏好，或跨任务稳定出现，并通过 Memory Gate 判断后，才写入 `memory/global/preferences.md`
