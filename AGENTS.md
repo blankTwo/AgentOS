@@ -16,6 +16,7 @@
 - 优先复用已有 rules 与 skills
 - 复杂任务必须先 plan 再执行
 - 不根据猜测直接修改代码
+- L2 及以上任务优先使用 Agent Runtime 记录目标、任务、能力链路、策略、验证与恢复状态
 - 经验必须沉淀，但沉淀必须隔离
 - skill 按任务层选择，技术栈作为实现上下文，不为每个技术栈无限新增 skill
 - 不用临时占位、半成品或 MVP 式方案替代系统性调整
@@ -232,6 +233,30 @@ plan 必须包含：
 
 若任务规模无法确认，按更高一级处理；不得因为需求描述简短就默认 L1。
 
+### Agent Runtime Gate
+当任务需要跨步骤、跨文件、跨层或跨回合持续推进时，必须判断是否记录 Agent Runtime 状态。
+
+Agent Runtime 是显式运行态，不是后台自动代理。它用于把目标、任务、观察、能力链路、策略决策、验证结果、恢复点和演化审查写入 SQLite runtime tables，便于后续任务恢复上下文和审查执行链路。
+
+触发条件：
+- L2 及以上任务
+- 能力状态为部分存在、断链存在、不存在或未确认
+- 涉及接口、数据、权限、状态流、跨层联动、发布链路或 Agent OS 规则
+- 任务需要 plan / TDD / review / rollback / worktree / performance check 任一策略判断
+- 多回合任务、长任务或用户要求“记录进度 / 继续上次 / 恢复任务”
+
+记录要求：
+- `goal`：记录目标、当前阶段、成功标准和证据
+- `task`：记录任务队列、任务层、规模、角色和执行计划
+- `observation`：记录关键文件、测试、构建、日志、用户反馈或项目状态观察
+- `capability`：记录能力链路是 complete、partial、broken-chain、absent 还是 unconfirmed
+- `policy`：记录 plan、TDD、review、rollback、worktree、performance、execution-mode 的决策和依据
+- `verification`：记录验证范围、命令、结果和证据
+- `recovery`：记录恢复策略、影响文件和回滚依据
+- `improvement`：记录受控演化候选，不自动升级 skill/rule/AGENTS
+
+L1 简单任务可不写 Runtime，但仍必须完成验证说明。L3/L4 任务必须至少记录 goal/task、policy、verification；若涉及能力链路或高风险变更，还必须记录 capability 和 recovery。
+
 ### Validation Gate
 任务完成前必须说明：
 - 验证什么
@@ -320,12 +345,13 @@ plan 必须包含：
 3. Capability Discovery Gate（仅在功能/能力类需求触发）
 4. Risk Gate
 5. Planning Gate
-6. Select Matching Skills
-7. Load Detailed Memory
-8. Implement changes
-9. Validation Gate
-10. Memory Gate
-11. Evaluate evolution candidates
+6. Agent Runtime Gate（L2 及以上、长任务或能力链路任务触发）
+7. Select Matching Skills
+8. Load Detailed Memory
+9. Implement changes
+10. Validation Gate
+11. Memory Gate
+12. Evaluate evolution candidates
 
 说明：
 - Memory Summary 用于快速读取项目摘要、特殊约束、主模式、已知坑点
@@ -375,10 +401,11 @@ plan 必须包含：
 4. rules/change-policy.md
 5. rules/review-gate.md（仅在触发 review gate 时）
 6. rules/memory-enhanced.md（仅在需要长期记忆检索或记录时）
-7. 对应技术栈 rules
-8. 对应 skills
-9. memory/global/preferences.md
-10. memory/projects/{project}.md
+7. rules/agent-runtime.md（仅在 L2 及以上、长任务、能力链路或运行态记录触发时）
+8. 对应技术栈 rules
+9. 对应 skills
+10. memory/global/preferences.md
+11. memory/projects/{project}.md
 
 如有冲突，优先级从上到下递减。
 
@@ -638,6 +665,7 @@ SQLite memory backend 用途：
 - Context Gate 是否完成：项目、技术栈、任务层、memory summary 是否明确
 - Evidence Gate 是否满足：判断和修复是否有证据
 - Risk Gate 是否完成：plan / worktree / TDD / review / rollback 是否判断过
+- Agent Runtime Gate 是否完成：L2 及以上是否记录 goal/task/policy/verification，能力链路或高风险变更是否记录 capability/recovery
 - Validation Gate 是否完成：验证方式、验证结果、剩余风险是否说明
 - Memory Gate 是否完成：是否需要写 memory，是否只是演化候选
 - SQLite memory 是否按强制条件执行：是否需要 `record-session`，是否需要 `record-item`，若未执行是否说明原因

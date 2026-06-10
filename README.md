@@ -84,6 +84,7 @@ Codex Agent OS 的目标是把这些问题收束到一套稳定机制里：
 │   ├── testing.md
 │   ├── change-policy.md
 │   ├── evolution.md
+│   ├── agent-runtime.md
 │   ├── memory-enhanced.md
 │   ├── review-gate.md
 │   ├── ui-design-system.md
@@ -202,12 +203,51 @@ your-project/
 - `Capability Discovery Gate`：对实现、新增、接入、支持类需求，先判断能力链路是完整存在、部分存在、断链存在还是不存在
 - `Risk Gate`：判断 TDD、worktree、rollback、review、performance check 等风险策略
 - `Planning Gate`：按 L1-L4 任务规模决定直接执行还是先输出 plan
+- `Agent Runtime Gate`：L2 及以上、长任务或能力链路任务记录目标、任务、策略、验证和恢复状态
 - `Validation Gate`：完成前说明验证方式、验证结果、失败处理和剩余风险
 - `Memory Gate`：判断是否写入 project memory，是否只是 candidate，是否不应沉淀
 
 简单任务可以简短完成这些判断；复杂任务必须完整经过 gate。
 
 性能不单独作为独立 gate，而是在 `Risk Gate` 和 `Validation Gate` 中作为专项检查处理。
+
+## Codex Agent OS Runtime
+
+Codex Agent OS Runtime 是显式运行态，用 SQLite 记录任务推进过程中的关键状态。它不是后台常驻大脑，不会自动改代码、自动升级规则或自动写长期记忆；它只在 gate 和执行过程中由 Agent 显式写入可审查记录。
+
+Runtime 补齐 10 个核心 Agent 能力：
+
+| 能力 | 记录位置 | 作用 |
+| --- | --- | --- |
+| Goal Runtime | `agent_goals` | 记录目标、阶段、成功标准和完成证据 |
+| Autonomous Observe Loop | `agent_observations` | 记录文件、测试、构建、日志、用户反馈等观察信号 |
+| Planner / Executor Separation | `agent_tasks.assigned_role` | 区分 planner、executor、reviewer、verifier、memory-recorder |
+| Capability Graph | `capability_nodes` / `capability_links` | 判断能力是完整、半套、断链、不存在还是未确认 |
+| Durable Task Queue | `agent_tasks` | 持久化任务队列、状态、阻塞点和计划 |
+| Policy Engine | `policy_decisions` | 记录是否 plan、TDD、review、rollback、worktree、performance check |
+| Memory Intelligence | `memory_items` / `skill_candidates` / `improvement_reviews` | 检索和沉淀经验，但不自动自我升级 |
+| Verification Orchestrator | `verification_runs` | 记录验证范围、命令、结果和证据 |
+| Recovery / Rollback System | `recovery_points` | 记录恢复策略、影响文件和回滚依据 |
+| Self-Improvement Governance | `improvement_reviews` | 记录演化候选、审查状态和边界 |
+
+Runtime 触发原则：
+
+- L1 简单局部修改：通常不需要 runtime 记录，但必须说明验证。
+- L2 模块内多文件修改：建议记录 task 和关键 policy。
+- L3 跨模块或跨层链路：必须记录 goal/task、capability、policy、verification，必要时记录 recovery。
+- L4 架构、数据、权限、发布或 Agent OS 核心变更：必须记录完整运行态，并执行 review 或等价一致性检查。
+
+常用命令：
+
+```bash
+python scripts/memory-tools.py runtime-record --kind goal --project my-project --id goal-1 --objective "Implement phone login" --success-criteria "Phone login works end to end" --current-phase planning
+
+python scripts/memory-tools.py runtime-record --kind capability --project my-project --name phone-login --capability-status broken-chain --frontend "Login form exists" --api "API call missing" --backend "Endpoint unconfirmed" --data-state "Phone field unconfirmed" --verification "No end-to-end evidence" --evidence "Capability Discovery Gate result"
+
+python scripts/memory-tools.py runtime-record --kind policy --project my-project --goal-id goal-1 --decision-type plan --decision "full-plan-required" --rationale "Capability is broken-chain and task is L3" --evidence "Capability discovery result"
+
+python scripts/memory-tools.py runtime-summary --project my-project
+```
 
 ## Codex Agent OS Memory Backend
 
@@ -222,6 +262,7 @@ your-project/
 - 记录架构决策、UI 模式、验证经验
 - 跟踪 candidate skill，而不是自动创建 skill
 - 记录 session 摘要和 skill 使用结果
+- 记录 Agent Runtime 的目标、任务、能力链路、策略、验证、恢复和演化审查状态
 
 数据库生成方式：
 
@@ -316,7 +357,7 @@ python scripts/memory-tools.py candidate-upsert \
 - `memory/index.db` 是本地索引，已被 `.gitignore` 忽略
 - `memory/schema.sql`、`scripts/memory-tools.py`、`tools/memory-tools.md` 可以提交和审查
 - Markdown memory 仍是人类可读、Git 可审查的主要记忆层
-- Codex Agent OS 没有后台自主记忆大脑，不会自动读取完整聊天记录或自动把对话写入长期记忆
+- Codex Agent OS 没有后台自主记忆大脑，不会自动读取完整聊天记录或自动把对话写入长期记忆；Runtime 记录也必须由 Agent 在任务过程中显式写入
 - 用户偏好只有在明确表达为长期偏好，或跨任务稳定出现，并通过 Memory Gate 判断后，才写入 `memory/global/preferences.md`
 - SQLite 不会自动修改 skill、rule 或 AGENTS
 - skill/rule 升级仍然必须经过 Review Gate 或用户确认

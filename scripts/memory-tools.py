@@ -33,6 +33,17 @@ MEMORY_TYPES = (
     "note",
 )
 
+RUNTIME_KINDS = (
+    "goal",
+    "task",
+    "observation",
+    "capability",
+    "policy",
+    "verification",
+    "recovery",
+    "improvement",
+)
+
 
 def connect(db_path: Path = DEFAULT_DB) -> sqlite3.Connection:
     db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -68,7 +79,7 @@ def migrate_schema(conn: sqlite3.Connection) -> None:
     conn.execute(
         """
         INSERT INTO schema_meta(key, value)
-        VALUES ('schema_version', '2')
+        VALUES ('schema_version', '3')
         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')
         """
     )
@@ -583,6 +594,384 @@ def cmd_record_skill_usage(args: argparse.Namespace) -> None:
     print_json({"ok": True, "id": cur.lastrowid, "skill_name": args.skill_name})
 
 
+def require_arg(args: argparse.Namespace, name: str) -> Any:
+    value = getattr(args, name)
+    if value is None or value == "":
+        raise SystemExit(f"Expected --{name.replace('_', '-')} for runtime-record {args.kind}")
+    return value
+
+
+def parse_runtime_links(values: list[str] | None) -> list[tuple[str, str]]:
+    links: list[tuple[str, str]] = []
+    if not values:
+        return links
+    for value in values:
+        if "=" not in value:
+            raise SystemExit(f"Invalid capability link, expected relation=target: {value}")
+        relation, target = value.split("=", 1)
+        relation = relation.strip()
+        target = target.strip()
+        if not relation or not target:
+            raise SystemExit(f"Invalid capability link, expected relation=target: {value}")
+        links.append((relation, target))
+    return links
+
+
+def cmd_runtime_record(args: argparse.Namespace) -> None:
+    with connect(args.db) as conn:
+        ensure_initialized(conn, args.schema)
+
+        if args.kind == "goal":
+            status = args.status or "active"
+            runtime_id = args.id or str(uuid.uuid4())
+            conn.execute(
+                """
+                INSERT INTO agent_goals(
+                    id, project, objective, status, priority, current_phase,
+                    success_criteria, evidence
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    project = excluded.project,
+                    objective = excluded.objective,
+                    status = excluded.status,
+                    priority = excluded.priority,
+                    current_phase = excluded.current_phase,
+                    success_criteria = excluded.success_criteria,
+                    evidence = excluded.evidence,
+                    updated_at = datetime('now')
+                """,
+                (
+                    runtime_id,
+                    args.project,
+                    require_arg(args, "objective"),
+                    status,
+                    args.priority,
+                    args.current_phase,
+                    args.success_criteria,
+                    args.evidence,
+                ),
+            )
+            result = {"ok": True, "kind": args.kind, "id": runtime_id, "project": args.project}
+
+        elif args.kind == "task":
+            status = args.status or "pending"
+            runtime_id = args.id or str(uuid.uuid4())
+            conn.execute(
+                """
+                INSERT INTO agent_tasks(
+                    id, goal_id, project, title, task_layer, scale, status,
+                    assigned_role, plan, evidence, blocker
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    goal_id = excluded.goal_id,
+                    project = excluded.project,
+                    title = excluded.title,
+                    task_layer = excluded.task_layer,
+                    scale = excluded.scale,
+                    status = excluded.status,
+                    assigned_role = excluded.assigned_role,
+                    plan = excluded.plan,
+                    evidence = excluded.evidence,
+                    blocker = excluded.blocker,
+                    updated_at = datetime('now')
+                """,
+                (
+                    runtime_id,
+                    args.goal_id,
+                    args.project,
+                    require_arg(args, "title"),
+                    args.task_layer,
+                    args.scale,
+                    status,
+                    args.assigned_role,
+                    args.plan,
+                    args.evidence,
+                    args.blocker,
+                ),
+            )
+            result = {"ok": True, "kind": args.kind, "id": runtime_id, "project": args.project}
+
+        elif args.kind == "observation":
+            cur = conn.execute(
+                """
+                INSERT INTO agent_observations(project, goal_id, source, summary, evidence, severity)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    args.project,
+                    args.goal_id,
+                    require_arg(args, "source"),
+                    require_arg(args, "summary"),
+                    args.evidence,
+                    args.severity,
+                ),
+            )
+            result = {"ok": True, "kind": args.kind, "id": cur.lastrowid, "project": args.project}
+
+        elif args.kind == "capability":
+            conn.execute(
+                """
+                INSERT INTO capability_nodes(
+                    project, name, status, frontend, api, backend,
+                    data_state, verification, evidence
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(project, name) DO UPDATE SET
+                    status = excluded.status,
+                    frontend = excluded.frontend,
+                    api = excluded.api,
+                    backend = excluded.backend,
+                    data_state = excluded.data_state,
+                    verification = excluded.verification,
+                    evidence = excluded.evidence,
+                    updated_at = datetime('now')
+                """,
+                (
+                    args.project,
+                    require_arg(args, "name"),
+                    args.capability_status,
+                    args.frontend,
+                    args.api,
+                    args.backend,
+                    args.data_state,
+                    args.verification,
+                    args.evidence,
+                ),
+            )
+            capability = conn.execute(
+                "SELECT id FROM capability_nodes WHERE project = ? AND name = ?",
+                (args.project, args.name),
+            ).fetchone()
+            capability_id = capability["id"]
+            if args.links is not None:
+                conn.execute("DELETE FROM capability_links WHERE capability_id = ?", (capability_id,))
+            for relation, target in parse_runtime_links(args.links):
+                conn.execute(
+                    """
+                    INSERT INTO capability_links(capability_id, relation, target, evidence)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (capability_id, relation, target, args.evidence),
+                )
+            result = {"ok": True, "kind": args.kind, "id": capability_id, "project": args.project}
+
+        elif args.kind == "policy":
+            cur = conn.execute(
+                """
+                INSERT INTO policy_decisions(
+                    project, goal_id, task_id, decision_type, decision, rationale, evidence
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    args.project,
+                    args.goal_id,
+                    args.task_id,
+                    require_arg(args, "decision_type"),
+                    require_arg(args, "decision"),
+                    args.rationale,
+                    args.evidence,
+                ),
+            )
+            result = {"ok": True, "kind": args.kind, "id": cur.lastrowid, "project": args.project}
+
+        elif args.kind == "verification":
+            cur = conn.execute(
+                """
+                INSERT INTO verification_runs(
+                    project, goal_id, task_id, scope, command, result, evidence
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    args.project,
+                    args.goal_id,
+                    args.task_id,
+                    require_arg(args, "scope"),
+                    args.command,
+                    args.result,
+                    args.evidence,
+                ),
+            )
+            result = {"ok": True, "kind": args.kind, "id": cur.lastrowid, "project": args.project}
+
+        elif args.kind == "recovery":
+            status = args.status or "planned"
+            cur = conn.execute(
+                """
+                INSERT INTO recovery_points(
+                    project, goal_id, task_id, strategy, files, status, evidence
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    args.project,
+                    args.goal_id,
+                    args.task_id,
+                    require_arg(args, "strategy"),
+                    normalize_csv(args.files),
+                    status,
+                    args.evidence,
+                ),
+            )
+            result = {"ok": True, "kind": args.kind, "id": cur.lastrowid, "project": args.project}
+
+        elif args.kind == "improvement":
+            status = args.status or "candidate"
+            conn.execute(
+                """
+                INSERT INTO improvement_reviews(
+                    project, candidate_name, source_type, trigger, evidence,
+                    scope, boundary, status, review_result
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(project, candidate_name, source_type) DO UPDATE SET
+                    trigger = excluded.trigger,
+                    evidence = excluded.evidence,
+                    scope = excluded.scope,
+                    boundary = excluded.boundary,
+                    status = excluded.status,
+                    review_result = excluded.review_result,
+                    updated_at = datetime('now')
+                """,
+                (
+                    args.project,
+                    require_arg(args, "candidate_name"),
+                    require_arg(args, "source_type"),
+                    require_arg(args, "trigger"),
+                    require_arg(args, "evidence"),
+                    args.scope,
+                    args.boundary,
+                    status,
+                    args.review_result,
+                ),
+            )
+            row = conn.execute(
+                """
+                SELECT id FROM improvement_reviews
+                WHERE project = ? AND candidate_name = ? AND source_type = ?
+                """,
+                (args.project, args.candidate_name, args.source_type),
+            ).fetchone()
+            result = {"ok": True, "kind": args.kind, "id": row["id"], "project": args.project}
+
+        else:
+            raise SystemExit(f"Unsupported runtime kind: {args.kind}")
+
+        conn.commit()
+    print_json(result)
+
+
+def cmd_runtime_list(args: argparse.Namespace) -> None:
+    table_by_kind = {
+        "goal": ("agent_goals", "updated_at"),
+        "task": ("agent_tasks", "updated_at"),
+        "observation": ("agent_observations", "created_at"),
+        "capability": ("capability_nodes", "updated_at"),
+        "policy": ("policy_decisions", "created_at"),
+        "verification": ("verification_runs", "created_at"),
+        "recovery": ("recovery_points", "created_at"),
+        "improvement": ("improvement_reviews", "updated_at"),
+    }
+    table, order_column = table_by_kind[args.kind]
+    where = ["project = ?"]
+    params: list[Any] = [args.project]
+
+    if args.status and args.kind in {"goal", "task", "capability", "recovery", "improvement"}:
+        status_column = "status"
+        where.append(f"{status_column} = ?")
+        params.append(args.status)
+    if args.goal_id and args.kind in {"task", "observation", "policy", "verification", "recovery"}:
+        where.append("goal_id = ?")
+        params.append(args.goal_id)
+
+    params.append(args.limit)
+    with connect(args.db) as conn:
+        ensure_initialized(conn, args.schema)
+        rows = conn.execute(
+            f"""
+            SELECT *
+            FROM {table}
+            WHERE {' AND '.join(where)}
+            ORDER BY {order_column} DESC
+            LIMIT ?
+            """,
+            params,
+        ).fetchall()
+    print_json({"ok": True, "kind": args.kind, "results": [row_to_dict(row) for row in rows]})
+
+
+def cmd_runtime_summary(args: argparse.Namespace) -> None:
+    with connect(args.db) as conn:
+        ensure_initialized(conn, args.schema)
+        active_goals = conn.execute(
+            "SELECT COUNT(*) AS count FROM agent_goals WHERE project = ? AND status = 'active'",
+            (args.project,),
+        ).fetchone()["count"]
+        tasks_by_status = conn.execute(
+            """
+            SELECT status, COUNT(*) AS count
+            FROM agent_tasks
+            WHERE project = ?
+            GROUP BY status
+            ORDER BY status
+            """,
+            (args.project,),
+        ).fetchall()
+        capabilities_by_status = conn.execute(
+            """
+            SELECT status, COUNT(*) AS count
+            FROM capability_nodes
+            WHERE project = ?
+            GROUP BY status
+            ORDER BY status
+            """,
+            (args.project,),
+        ).fetchall()
+        recent_observations = conn.execute(
+            """
+            SELECT id, source, summary, severity, created_at
+            FROM agent_observations
+            WHERE project = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (args.project, args.limit),
+        ).fetchall()
+        recent_verifications = conn.execute(
+            """
+            SELECT id, scope, command, result, created_at
+            FROM verification_runs
+            WHERE project = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (args.project, args.limit),
+        ).fetchall()
+        open_improvements = conn.execute(
+            """
+            SELECT COUNT(*) AS count
+            FROM improvement_reviews
+            WHERE project = ? AND status IN ('candidate', 'reviewing')
+            """,
+            (args.project,),
+        ).fetchone()["count"]
+    print_json(
+        {
+            "ok": True,
+            "project": args.project,
+            "active_goals": active_goals,
+            "tasks_by_status": [row_to_dict(row) for row in tasks_by_status],
+            "capabilities_by_status": [row_to_dict(row) for row in capabilities_by_status],
+            "recent_observations": [row_to_dict(row) for row in recent_observations],
+            "recent_verifications": [row_to_dict(row) for row in recent_verifications],
+            "open_improvements": open_improvements,
+        }
+    )
+
+
 def import_markdown_file(
     conn: sqlite3.Connection,
     path: Path,
@@ -902,6 +1291,87 @@ def build_parser() -> argparse.ArgumentParser:
     usage_parser.add_argument("--success", action="store_true")
     usage_parser.add_argument("--notes")
     usage_parser.set_defaults(func=cmd_record_skill_usage)
+
+    runtime_record_parser = subparsers.add_parser("runtime-record", help="Record Agent Runtime state")
+    add_common_args(runtime_record_parser)
+    runtime_record_parser.add_argument("--kind", choices=RUNTIME_KINDS, required=True)
+    runtime_record_parser.add_argument("--project", required=True)
+    runtime_record_parser.add_argument("--id")
+    runtime_record_parser.add_argument("--goal-id")
+    runtime_record_parser.add_argument("--task-id")
+    runtime_record_parser.add_argument("--objective")
+    runtime_record_parser.add_argument("--title")
+    runtime_record_parser.add_argument("--summary")
+    runtime_record_parser.add_argument("--source")
+    runtime_record_parser.add_argument("--name")
+    runtime_record_parser.add_argument("--status")
+    runtime_record_parser.add_argument("--priority", choices=("low", "normal", "high", "critical"), default="normal")
+    runtime_record_parser.add_argument("--current-phase")
+    runtime_record_parser.add_argument("--success-criteria")
+    runtime_record_parser.add_argument("--task-layer")
+    runtime_record_parser.add_argument("--scale", choices=("L1", "L2", "L3", "L4"))
+    runtime_record_parser.add_argument(
+        "--assigned-role",
+        choices=("planner", "executor", "reviewer", "memory-recorder", "verifier"),
+    )
+    runtime_record_parser.add_argument("--plan")
+    runtime_record_parser.add_argument("--blocker")
+    runtime_record_parser.add_argument(
+        "--severity",
+        choices=("info", "warning", "error", "critical"),
+        default="info",
+    )
+    runtime_record_parser.add_argument(
+        "--capability-status",
+        choices=("complete", "partial", "broken-chain", "absent", "unconfirmed"),
+        default="unconfirmed",
+    )
+    runtime_record_parser.add_argument("--frontend")
+    runtime_record_parser.add_argument("--api")
+    runtime_record_parser.add_argument("--backend")
+    runtime_record_parser.add_argument("--data-state")
+    runtime_record_parser.add_argument("--verification")
+    runtime_record_parser.add_argument("--links", nargs="*")
+    runtime_record_parser.add_argument(
+        "--decision-type",
+        choices=("plan", "tdd", "review", "rollback", "worktree", "performance", "execution-mode"),
+    )
+    runtime_record_parser.add_argument("--decision")
+    runtime_record_parser.add_argument("--rationale")
+    runtime_record_parser.add_argument("--scope")
+    runtime_record_parser.add_argument("--command")
+    runtime_record_parser.add_argument(
+        "--result",
+        choices=("passed", "failed", "blocked", "not-run"),
+        default="not-run",
+    )
+    runtime_record_parser.add_argument("--strategy")
+    runtime_record_parser.add_argument("--files", nargs="*")
+    runtime_record_parser.add_argument("--candidate-name")
+    runtime_record_parser.add_argument(
+        "--source-type",
+        choices=("preference", "lesson", "pattern", "skill", "rule"),
+    )
+    runtime_record_parser.add_argument("--trigger")
+    runtime_record_parser.add_argument("--boundary")
+    runtime_record_parser.add_argument("--review-result")
+    runtime_record_parser.add_argument("--evidence")
+    runtime_record_parser.set_defaults(func=cmd_runtime_record)
+
+    runtime_list_parser = subparsers.add_parser("runtime-list", help="List Agent Runtime records")
+    add_common_args(runtime_list_parser)
+    runtime_list_parser.add_argument("--kind", choices=RUNTIME_KINDS, required=True)
+    runtime_list_parser.add_argument("--project", required=True)
+    runtime_list_parser.add_argument("--status")
+    runtime_list_parser.add_argument("--goal-id")
+    runtime_list_parser.add_argument("--limit", type=int, default=20)
+    runtime_list_parser.set_defaults(func=cmd_runtime_list)
+
+    runtime_summary_parser = subparsers.add_parser("runtime-summary", help="Summarize Agent Runtime state")
+    add_common_args(runtime_summary_parser)
+    runtime_summary_parser.add_argument("--project", required=True)
+    runtime_summary_parser.add_argument("--limit", type=int, default=5)
+    runtime_summary_parser.set_defaults(func=cmd_runtime_summary)
 
     import_parser = subparsers.add_parser("import-markdown", help="Import existing Markdown memory into SQLite")
     add_common_args(import_parser)
