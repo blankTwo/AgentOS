@@ -1,7 +1,7 @@
 # Enhanced Memory Rules
 
 ## Goal
-Add Hermes-like long-term memory and retrieval while keeping Codex Agent OS lightweight, reviewable, and controlled.
+Add structured memory retrieval and recording while keeping Codex Agent OS lightweight, reviewable, and controlled.
 
 This rule strengthens Memory Gate. It does not replace Markdown memory, Evolution Policy, or Review Gate.
 
@@ -25,6 +25,24 @@ Use both layers when available:
    - Managed through `scripts/memory-tools.py`
 
 If `scripts/memory-tools.py` or `memory/schema.sql` is unavailable, continue using Markdown memory and report the missing SQLite recording in the final response.
+
+---
+
+## No Autonomous Memory Brain
+
+Codex Agent OS does not have a background autonomous memory brain.
+
+The agent must not:
+- silently read or summarize full chat history into long-term memory
+- automatically treat ordinary conversation as durable memory
+- record one-off instructions as stable preferences
+- use SQLite records as more authoritative than current project files or Markdown memory
+
+Memory is explicit and reviewable:
+- Markdown memory is the human-readable source of truth
+- SQLite is a local structured retrieval and recording index
+- user preferences require Memory Gate judgment before recording
+- sensitive data, credentials, private data, and unverified guesses must not be recorded
 
 ---
 
@@ -86,7 +104,7 @@ At task completion, run at least `record-session` when any of these are true:
 - Cross-module or cross-layer flow changed: frontend/backend integration, SDK, webhook, service boundary
 - Bugfix has a clear root cause, repeated symptom, regression risk, or future diagnostic value
 - A reusable implementation pattern, UI pattern, architecture decision, validation lesson, or project constraint was discovered
-- Mother system files changed: `AGENTS.md`, `rules/`, `skills/`, memory policy, or memory tooling
+- Agent OS files changed: `AGENTS.md`, `rules/`, `skills/`, memory policy, or memory tooling
 - User explicitly asks to remember, record,沉淀, or use later
 
 Also run `record-item` when the task produced any of these:
@@ -381,6 +399,8 @@ Do not commit:
 SQLite may suggest.
 
 Review Gate decides.
+
+Memory may evolve into candidates, skills, or rules only through controlled review. The agent may identify stable preferences and reusable lessons, but must not self-upgrade by modifying `AGENTS.md`, `rules/`, or `skills/` without evidence, boundaries, and Review Gate or explicit user approval.
 
 The agent may:
 - search memory

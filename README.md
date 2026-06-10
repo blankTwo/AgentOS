@@ -209,11 +209,11 @@ your-project/
 
 性能不单独作为独立 gate，而是在 `Risk Gate` 和 `Validation Gate` 中作为专项检查处理。
 
-## Hermes-like Memory Backend
+## Codex Agent OS Memory Backend
 
-系统提供 SQLite-backed memory backend，用于更接近 Hermes Agent 的长期记忆检索和受控自我成长。
+系统提供 Codex Agent OS Memory Backend，用 Markdown memory 作为可审查主记忆层，并用 SQLite 作为本地结构化检索与记录索引。
 
-这里的“记忆”不是自动读取完整聊天记录，也不是凭空知道过去发生了什么。它依赖任务结束后的结构化沉淀：把已完成的功能、踩过的坑、架构决策、验证结果记录为可检索 memory item。后续任务开始时，Agent 再通过 Context Gate 搜索这些记录，从而“记得以前做过相关功能”。
+这里的“记忆”不是自动读取完整聊天记录，也不是凭空知道过去发生了什么。它依赖任务结束后的显式结构化沉淀：把已完成的功能、踩过的坑、架构决策、验证结果记录为可检索 memory item。后续任务开始时，Agent 再通过 Context Gate 或 Capability Discovery Gate 搜索这些记录，从而用已沉淀的项目经验辅助判断。
 
 它解决的问题：
 
@@ -316,6 +316,8 @@ python scripts/memory-tools.py candidate-upsert \
 - `memory/index.db` 是本地索引，已被 `.gitignore` 忽略
 - `memory/schema.sql`、`scripts/memory-tools.py`、`tools/memory-tools.md` 可以提交和审查
 - Markdown memory 仍是人类可读、Git 可审查的主要记忆层
+- Codex Agent OS 没有后台自主记忆大脑，不会自动读取完整聊天记录或自动把对话写入长期记忆
+- 用户偏好只有在明确表达为长期偏好，或跨任务稳定出现，并通过 Memory Gate 判断后，才写入 `memory/global/preferences.md`
 - SQLite 不会自动修改 skill、rule 或 AGENTS
 - skill/rule 升级仍然必须经过 Review Gate 或用户确认
 
@@ -340,6 +342,8 @@ python scripts/memory-tools.py candidate-upsert \
 ```text
 project memory -> skill -> rule
 ```
+
+这是一条受控演化路径，不是自动自我升级。Agent 可以记录高价值经验、稳定用户偏好、candidate skill/rule 和 session 摘要，但不能基于一次对话自动修改 `AGENTS.md`、`rules/` 或 `skills/`。任何从 memory 升级到 skill/rule 的动作，都必须满足触发场景、出现次数、验证证据、适用范围和边界要求，并经过 Review Gate 或用户确认。
 
 写入 project memory 的典型情况：
 
