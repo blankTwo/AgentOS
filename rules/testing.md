@@ -1,110 +1,109 @@
 # Testing Rules
 
 ## General
-- 任何非极小改动都应考虑验证
-- bugfix 至少要验证复现路径与修复路径
-- feature 至少验证主流程与关键边界
-- refactor 至少验证行为不变
-- 验证结论必须基于实际结果，不能只写计划或主观判断
+- Any non-trivial change should consider validation.
+- Bugfixes must at least validate reproduction and fixed paths.
+- Features must validate the main flow and key boundaries.
+- Refactors must validate unchanged behavior.
+- Validation conclusions must be based on actual results, not plans or impressions.
 
 ## Risk-Based TDD
-TDD 不是全局强制，但会改变可观察行为、数据结果、接口契约或业务规则的改动，应优先考虑测试先行。
+TDD is not globally mandatory, but changes that affect observable behavior, data results, API contracts, or business rules should prefer test-first work.
 
 ### Test-First Required Unless Blocked
-- 新增或修改核心业务逻辑
-- 涉及权限、金额、状态机、数据转换、复杂校验
-- 修改已有测试覆盖的模块
-- 修复明确回归问题，且项目已有可用测试框架
-- 数据处理、算法、工具函数存在多分支或边界条件
+- New or changed core business logic.
+- Permission, money, state machines, data conversion, or complex validation.
+- Modules already covered by tests.
+- Clear regression fixes when a usable test framework exists.
+- Multi-branch utilities or data-processing logic with edge cases.
 
-若无法测试先行，必须说明阻塞原因，并给出替代验证方式。
+If test-first is blocked, state the blocker and substitute validation.
 
 ### Recommended TDD
-- 新增 API 行为或响应协议
-- 重构已有逻辑但要求行为不变
-- 跨层联动中存在关键状态流
-- 表单校验、错误处理、边界分支较多
-- bugfix 在确认根因后可补最小回归测试
+- New API behavior or response contracts.
+- Behavior-preserving refactors.
+- Cross-layer state flows.
+- Forms, error handling, and boundary-heavy branches.
+- Bugfixes after root cause is confirmed.
 
 ### TDD Can Be Replaced By Validation
-- 纯 UI 视觉或布局调整
-- 文档、rules、skills、memory 更新
-- 一次性脚本或探索性原型
-- 项目没有测试基础，且补测试成本明显超过本次改动风险
-- 低风险配置调整
+- Pure visual or layout UI work.
+- Documentation, rules, skills, or memory updates.
+- One-off scripts or exploratory prototypes.
+- Projects without a test foundation when adding one exceeds task risk.
+- Low-risk config changes.
 
-若不使用 TDD，必须说明替代验证方式。
+If TDD is not used, state the validation method.
 
 ## Validation Priority
-1. 编译 / 类型检查
-2. 单元测试
-3. 集成测试
-4. 手工关键路径验证
+1. Compile / type check.
+2. Unit tests.
+3. Integration tests.
+4. Manual key-path validation.
 
 ## Validation By Task Layer
-- UI Layer: 视觉检查、交互路径、响应式、空/错/加载状态
-- API Layer: 请求参数、响应结构、成功路径、错误路径、权限边界
-- Data Layer: schema / migration / 查询结果 / 数据一致性 / 回滚路径
-- Integration Layer: 前后端契约、第三方返回、失败重试、超时或异常
-- Runtime Layer: 构建、启动、环境变量、脚本、部署或运行时配置
-- Test Layer: 新增测试是否能失败后通过，测试是否稳定且覆盖目标行为
-- Bugfix Layer: 复现路径、修复路径、相关回归路径
-- Refactor Layer: 行为不变、关键路径仍通过、性能或结构目标是否达成
+- UI Layer: visual check, interaction path, responsive behavior, empty/error/loading states.
+- API Layer: request parameters, response shape, success path, error path, permission boundary.
+- Data Layer: schema, migration, query results, consistency, rollback path.
+- Integration Layer: frontend/backend contract, third-party response, retry, timeout, exceptions.
+- Runtime Layer: build, startup, environment variables, scripts, deployment, runtime config.
+- Test Layer: new tests fail when expected and pass after the fix; tests are stable.
+- Bugfix Layer: reproduction path, fix path, related regression path.
+- Refactor Layer: unchanged behavior, core path passes, structural goal met.
 
 ## When Tests Are Missing
-如果项目没有测试：
-- 先给出最小验证方案
-- 说明风险点
-- 必要时建议补测试
+If the project has no tests:
+- provide the minimum validation plan
+- state risks
+- recommend tests when risk justifies it
 
 ## Validation Failure Handling
-验证失败不是结束语，必须进入失败处理流程。
+Validation failure is not a final answer. Enter failure handling.
 
 ### Failure Evidence
-验证失败时先记录证据：
-- 失败命令、错误输出、日志或截图
-- 失败路径、输入数据或复现步骤
-- 当前修改与失败现象的可能关联
+Record:
+- failed command, output, logs, or screenshot
+- failed path, input, or reproduction steps
+- possible relationship to the current change
 
 ### Failure Classification
-失败后先分类，再继续修改：
-- 实现问题：代码逻辑、状态流、数据处理、接口契约或 UI 行为不符合预期
-- 测试问题：断言、测试数据、mock、fixture 或测试前置条件错误
-- 环境问题：依赖、配置、权限、外部服务、网络或平台条件缺失
-- 需求理解问题：实现目标与用户真实意图或现有系统行为不一致
+- implementation problem
+- test problem
+- environment problem
+- requirement understanding problem
 
 ### Retry Boundary
-- 第一次失败：定位根因，做针对性修复，再次验证
-- 第二次失败：检查边界条件、依赖关系、任务层选择和验证方式是否正确
-- 连续失败 >= 3 次：停止扩大修改，列出已尝试方案与失败原因，重新分析整体方案；必要时回滚到稳定状态或向用户确认方向
+- First failure: locate root cause, fix narrowly, validate again.
+- Second failure: check edge cases, dependencies, task layer, and validation method.
+- Three consecutive failures: stop expanding changes, list attempts and causes, reanalyze, and recover or ask for confirmation when needed.
 
 ### Unable To Validate
-以下情况可以交付，但必须标记风险并给出手工验证方案：
-- 缺少生产环境配置或真实凭证
-- 第三方服务、硬件、系统版本或网络环境无法本地模拟
-- 需要大规模数据、长时间运行或外部审批
-- 当前项目确实没有可用测试基础，且补齐测试基础超出本次任务风险范围
+Delivery with risk is allowed only when:
+- production config or real credentials are missing
+- third-party service, hardware, system version, or network condition cannot be simulated
+- large data, long runtime, or external approval is required
+- the project truly lacks a test foundation and adding it is outside task risk
 
-以下情况不能作为“无法验证”的理由：
-- 项目已有测试框架但未尝试运行
-- 可以本地启动、构建或类型检查但未执行
-- 编译、类型检查或核心路径失败却仍声称可以交付
+These are not valid "unable to validate" reasons:
+- a test framework exists but was not run
+- local startup, build, or type check is possible but not attempted
+- compile, type check, or core path failed but delivery is still claimed
 
 ### Partial Pass
-- 核心路径失败：不得视为完成
-- 核心路径通过但边界失败：必须说明影响范围，并优先修复
-- 核心路径通过但外部依赖无法验证：可以交付，但必须记录风险和手工验证步骤
+- Core path failure blocks completion.
+- Core path pass with edge failure requires impact statement and prioritized fix.
+- Core path pass with unverifiable external dependency may be delivered with risk and manual validation steps.
 
 ### Performance Validation
-涉及性能的任务必须说明：
-- 当前基线或可观察现状
-- 目标指标或不应退化的指标
-- 验证方式：benchmark / profiling / 压测 / 构建产物对比 / 手工观察
-- 无法量化时的原因与替代验证方式
+Performance tasks must state:
+- current baseline or observable state
+- target or non-regression metric
+- validation method: benchmark, profiling, load test, artifact comparison, or manual observation
+- reason and substitute method when not quantifiable
 
 ## Output
-验证说明至少包含：
-- 验证什么
-- 怎么验证
-- 验证结果
-- 风险还剩什么
+Validation notes must include:
+- what was validated
+- how it was validated
+- result
+- remaining risk

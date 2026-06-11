@@ -1,307 +1,117 @@
 ---
 name: feature-ui
-description: 用于从 0 到 1 生成功能级或页面级产品 UI，适用于新建页面、新建列表/表单/详情/dashboard、搭建新项目初始界面、为现有功能补充完整 UI 结构等场景。该 skill 通过跨框架的质量清单约束页面结构、状态覆盖、交互完整性、平台适配与一致性要求，但不绑定 React、Vue、Taro 等具体框架语法，也不规定组件库、状态库或样式方案。
+description: Use to design a production-grade feature-level or page-level UI from zero to one. Applies to new pages, lists, forms, detail pages, dashboards, initial project UI, and complete UI structure for an existing feature. This skill defines cross-framework product UI quality; it does not bind implementation to React, Vue, Taro, or any component library.
 ---
 
 # Goal
-生成功能级或页面级产品 UI，并保证基础质量稳定：
-- 结构清晰
-- 状态完整
-- 交互合理
-- 平台适配
-- 风格一致
-- 不呈现明显 AI 模板感
+Create complete, product-ready UI structure with clear hierarchy, state coverage, interaction design, platform fit, and design-system alignment.
 
 # Scope
-本 skill 处理的是产品 UI 的生成策略，而不是具体框架实现。
+Use for:
+- new pages
+- feature-level UI
+- lists, forms, detail pages, dashboards
+- empty/error/loading/success/disabled state design
+- UI structure before framework implementation
 
-适合处理：
-- 新建列表页、表单页、详情页、dashboard、设置页等产品页面
-- 为新项目提供第一版可扩展 UI 骨架
-- 为现有功能补齐完整的页面结构与状态设计
-- 在缺少明确参考页面时，生成成熟且可落地的产品 UI
-
-不负责处理：
-- React / Vue / Taro 的具体语法实现
-- hooks、composition API、store、router 等框架模式
-- 组件库或样式技术选型
-- 营销型创意页面（品牌宣传页、活动页、艺术化 landing page、广告页）
-- 领域特化的复杂可视化、编辑器、3D 或重专业交互界面
-
-可以处理但需明确边界：
-- 产品化作品集页面（Portfolio、个人网站、案例展示）- 作为功能页面处理，而不是艺术创作
+Do not use for:
+- small visual tweaks to existing pages; use `ui-refine`
+- React-specific implementation details; use `feature-react`
+- backend/API contract changes; use `api-change`
 
 # Use With Other Skills
-- 新建或生成 UI 前必须读取 `rules/ui-design-system.md`，除非项目已有更明确的 design system
-- 若任务需要落地实现，与当前项目已有实现 skill、项目代码模式或技术栈 rules 组合使用
-- 若任务是优化已有页面，而不是新建 UI，优先使用 `ui-refine`
-- 若需要在生成功能 UI 后继续打磨观感，可在生成后补用 `ui-refine`
-- 不因出现新的前端框架就新增平行 stack-specific skill
+- Pair with `feature-react` when implementing in React.
+- Pair with `ui-refine` when polishing existing UI.
+- Pair with `api-change` when UI requires new or changed API contracts.
+- Pair with `write-tests` when UI behavior needs regression protection.
 
 # Workflow
-1. **判断目标与产品类型**
-   - 判断目标是新建页面、补齐功能 UI，还是只是优化已有页面
-   - 快速识别产品类型（只需判断以下 8 类）：
-     - **SaaS/B2B 工具** -> 信任感 + 清晰层级 + 专业配色
-     - **E-commerce** -> 视觉吸引力 + 转化优化 + 品牌色
-     - **Dashboard/数据密集** -> 信息密度 + 高对比度 + 实时反馈
-     - **内容/社区平台** -> 可读性 + 社交证明 + 参与感
-     - **创意/作品集** -> 个性表达 + 视觉冲击 + 叙事性
-     - **健康/教育** -> 可访问性 + 友好感 + 清晰引导
-     - **金融/加密** -> 信任 + 安全感 + 高对比/实时反馈
-     - **通用 Web App** -> 平衡所有维度
-2. 判断目标平台：
-   - Desktop Web
-   - Mobile App
-   - Mini Program / Touch Device
-3. 判断交互意图：
-   - 数据展示
-   - 数据输入
-   - 导航与流程
-   - 反馈与状态
-   - 内容组织
-4. 先判断页面首屏目标：
-   - 首屏必须先承载什么
-   - 哪些信息应延后到次屏
-   - 哪些模块可以折叠、弱化或不出现
-5. 建立设计系统基线：
-   - 若项目已有 tokens / design system，优先使用项目规范
-   - 若没有，使用 `rules/ui-design-system.md` 的默认 type scale、8pt spacing、组件尺寸和 viewport 规则
-6. 查找项目中是否已有相似页面或稳定模式
-7. 若存在相似页面，优先对齐其布局、层级、组件复用方式和视觉节奏
-8. 若不存在相似页面，生成一版成熟、克制、产品化的默认结构
-9. **回答 Pre-Generation Checklist 中的所有问题**
-10. 按质量清单检查并补齐缺失项
-11. **执行 AI-Taste Self-Check**
-12. 输出可继续实现的 UI 结构，而不是只给规划说明
+1. Identify product type and primary user task.
+2. Inspect existing pages, components, tokens, and layout conventions.
+3. Define the first-screen goal and information priority.
+4. Decide which content is primary, secondary, deferred, collapsed, or omitted.
+5. Establish design-system baseline from project tokens or `rules/ui-design-system.md`.
+6. Prefer existing components and patterns.
+7. Create a complete UI structure with states and interactions.
+8. Check viewport fit, especially common desktop sizes such as 1024x768, 1280x800, and 1440x900.
+9. Run the quality checklist before handing off to implementation.
 
 # Pre-Generation Checklist
-生成 UI 前必须回答以下问题，否则禁止开始生成：
-
-## Product Type Fit
-- ❓ 这个产品的核心目标是什么？（转化 / 信任 / 参与 / 展示 / 效率）
-- ❓ 用户期望的视觉基调是什么？（专业 / 友好 / 高端 / 创意 / 中性）
-- ❓ 该产品类型需要避免的典型反模式：
-
-| 产品类型 | 典型反模式 |
-|---------|-----------|
-| SaaS/B2B | AI 紫粉渐变、过度装饰、深色默认 |
-| E-commerce | 扁平无层次、文字过多、隐藏价格 |
-| Dashboard | 未判断的浅色默认、装饰动画、低对比度 |
-| 内容/社区 | 复杂导航、弱社交信号、无个性化 |
-| 创意/作品集 | 企业模板、隐藏作品、无叙事 |
-| 健康/教育 | 高饱和色、复杂术语、无辅助功能 |
-| 金融/加密 | 未判断的浅色默认、慢响应、隐藏费用 |
-
-## Core Task Definition
-- ❓ 这个页面的单一核心任务是什么？（用一句话说明）
-- ❓ 用户进入这个页面后，第一眼应该看到什么？
-- ❓ 用户在这个页面上最常执行的操作是什么？
-
-## Content Priority
-- ❓ 首屏必须承载什么？（列出 1-3 项）
-- ❓ 什么可以延后到次屏或折叠？（列出所有次要内容）
-- ❓ 什么可以完全不出现？（删除不必要的装饰）
-
-## Existing Patterns
-- ❓ 项目中已有哪些可复用组件？
-  - 若有：列出至少 3 个
-  - 若无：标记为"新项目，无现有组件"，后续建立默认组件体系
-- ❓ 项目中相似页面的布局方式是什么？
-  - 若有：说明布局方式（单栏/双栏/比例）
-  - 若无：标记为"无参考页面"，使用产品类型默认布局
-- ❓ 项目中的间距体系是什么？
-  - 若有：说明间距规律（gap-2/4/6/8 的使用规律）
-  - 若无：建立默认间距档位（gap-2 内部，gap-4 组件间，gap-8 区块间）
-
-## Design System Baseline
-- ❓ 是否已有项目 design tokens / 组件库规范？
-  - 若有：使用项目规范
-  - 若无：使用 `rules/ui-design-system.md` 默认基线
-- ❓ 标题字号是否在 type scale 内？登录页/表单页/设置页不应无判断超过 H1 上限
-- ❓ 间距是否遵循 8pt grid？是否存在为了“高级感”堆叠过大 padding 的情况？
-- ❓ Button / Input / Card 是否使用统一尺寸？默认 Button 32/40/48px，Input 40px，Card padding 24px
-- ❓ 颜色、圆角、阴影是否来自 token 或项目已有模式，而不是随机值？
-- ❓ 单任务页面是否在 `1024x768`、`1280x800`、`1440x900` 下避免无意义滚动？
-
-## Density Control
-- ❓ 首屏元素类型不超过 3-4 种（例如：标题+列表+操作按钮，不要再加统计卡片）
-- ❓ 首屏信息密度是否合理？（登录页 < 20%，列表页 < 60%，Dashboard < 70%）
-
-## Visual Weight
-- ❓ 页面的视觉权重分布是什么？（主区域 60%，次区域 30%，装饰 10%）
-- ❓ 如果是双栏布局，哪一侧承担主任务？（不能两侧同等饱满）
-
----
+Answer these before generating UI:
+- What is the product type and core goal?
+- What should the user see first?
+- What is the single primary task on the page?
+- What information must appear above the fold?
+- What can be deferred, collapsed, or removed?
+- What reusable components already exist?
+- What layout and spacing patterns exist in similar pages?
+- What design tokens or component library rules apply?
+- Which loading, empty, error, success, disabled, and submitting states are required?
+- Which interaction feedback states are required?
 
 # Quality Checklist
-
-## Product Type Priority
-根据产品类型调整检查优先级：
-
-- **SaaS/B2B**: Structure > Consistency > State Coverage > Interaction
-- **E-commerce**: Visual Weight > Interaction > State Coverage > Structure
-- **Dashboard**: Information Density > Performance > Contrast > Real-time Feedback
-- **内容/社区**: Readability > Social Signals > Navigation > Personalization
-- **创意/作品集**: Visual Impact > Storytelling > Uniqueness > Portfolio Prominence
-- **健康/教育**: Accessibility > Clarity > Guidance > Calming Aesthetics
-- **金融/加密**: Trust > Security > Real-time > Dark Mode
+## Product Fit
+- SaaS and operational tools should be quiet, dense, organized, and repeat-use friendly.
+- E-commerce must show product, price, trust, and purchase path clearly.
+- Dashboards must prioritize scanning, comparison, and repeated action.
+- Content or community products must prioritize readability and social signals.
+- Creative portfolios must show the work and create a distinct voice.
+- Finance and security surfaces must prioritize trust, clarity, and risk visibility.
 
 ## Structure
-- 页面必须有清晰区块，而不是原生标签平铺
-- 主内容区、辅助区、操作区、反馈区主次明确
-- 避免所有模块同层级、同权重、同节奏
-- 优先定义首屏核心区块，避免一开始就把全部信息平铺进首屏
-- 次级信息、补充说明、帮助内容应默认后置，而不是抢占首屏空间
-
-## Above-the-Fold Discipline
-- 首屏先解决当前页面最核心的任务，而不是追求一次展示全部内容
-- 登录页、表单页、设置页、列表页、dashboard 都必须区分“首屏必要信息”和“次级信息”
-- 当内容超过首屏承载能力时，优先删除、折叠、分组或下移，而不是继续堆叠
-- 单任务页面应尽量避免首屏纵向滚动；多任务页面也要保证首屏焦点明确
-
-## Information Layering
-- 不同层级的信息必须有明确优先级，不能每块都像主信息
-- 品牌、说明、统计、帮助、附加操作不能同时争夺第一视觉层级
-- 真实产品页面允许留白，允许部分信息延后出现，不要求“完整感”压倒“节奏感”
-- 若一个页面已经有明确主操作，其余内容应主动降权而不是平均展开
+- The page must have clear primary, secondary, operation, and feedback areas.
+- Do not flatten every section to the same visual weight.
+- Do not overfill the first screen.
+- Do not add decorative cards, stats, pills, or helper panels unless they serve the task.
 
 ## State Coverage
-- 显式考虑 `loading / empty / error / success / disabled`
-- 涉及提交、删除、筛选、保存、切换时，要有过程态和结果态
-- 不只覆盖理想成功路径
+- Cover loading, empty, error, success, disabled, and submitting states when relevant.
+- Critical operations must have visible feedback.
+- Do not deliver only the ideal success path.
 
-## Interaction Completeness
-- 关键操作必须有可见反馈
-- 交互区域应具备合理的 hover / focus / pressed / submitting 等状态
-- 避免只有静态布局而缺少真实交互闭环
+## Interaction
+- Primary actions must be clear.
+- Hover, focus, pressed, selected, disabled, and submitting states should be accounted for.
+- Touch and scroll behavior must fit the platform.
 
-## Platform Fit
-- Web、App、Mini Program 应按平台习惯调整布局密度、点击区和反馈方式
-- 不直接把桌面后台结构照搬到移动端
-- 考虑触摸场景、滚动场景和弱网络场景
+## Design System
+- Use project tokens first.
+- Otherwise use `rules/ui-design-system.md`.
+- Stay inside the type scale.
+- Use 8pt spacing unless the project standard says otherwise.
+- Use consistent button, input, and card sizes.
+- Avoid arbitrary values and magic numbers.
 
 ## Viewport Awareness
-- Desktop Web 默认先检查常见视口下的首屏表现，而不是只看大屏效果
-- 至少应考虑 `1440x900`、`1280x800`、`1024x768` 这类常见桌面视口
-- 若页面在这些视口下首屏失控、主任务被挤压或出现无意义滚动，应重新分配内容
-- 不以固定 `1080` 高度假设页面一定有足够空间
-- 登录、注册、找回密码、简单设置等单任务页面，不应因为品牌区字号过大、padding 过大、装饰区过满或双栏同权重导致滚动条
+- Single-task pages should avoid meaningless scroll at 1024x768.
+- Brand or decorative areas must not overpower the main task.
+- If content exceeds first-screen capacity, group, defer, collapse, or remove secondary content.
 
-## Design System Compliance
-- 默认遵循 `rules/ui-design-system.md`
-- 字号必须落在项目 type scale 或默认 type scale 中
-- 间距必须遵循项目 spacing 或默认 8pt grid
-- 颜色、圆角、阴影、按钮、输入框和卡片尺寸必须来自项目 tokens 或默认 tokens
-- 不允许用 magic number 修补视觉问题，除非项目规范已有该值
-
-## Componentization
-- 优先组织成可复用结构单元，而不是整页散写
-- 即使没有现成组件库，也应保持组件化思维
-- 结构复用优先于样式堆砌
-
-## Consistency
-- 字号、间距、圆角、边框、阴影、按钮风格应稳定收敛
-- 同类区域保持一致写法，不要每块单独发明视觉规则
-- 新项目也要建立稳定视觉档位
-
-## Anti-AI Signals
-- 避免所有卡片、区块、信息层级完全一样
-- 避免“标题 + 内容 + 按钮”重复堆叠的模板布局
-- 避免大量原生控件直接拼接形成廉价感
-- 避免依赖零碎 arbitrary values 拼出表面精致感
-
-## Anti-Template Bias
-- 不默认套用最常见的页面骨架组合
-- 必须拉开页面主次关系，避免所有区域平均分配视觉权重
-- 品牌区不能只承担信息堆叠，必须承担识别、气质或叙事
-- 不自动补充 pills、stats、helper card 等安全装饰元素，除非它们真正服务当前页面目标
-- 间距、密度、排版和颜色必须服务页面气质，而不是统一采用安全模板
-- 输出前检查页面是否过于可预测，是否像高质量模板而不是具体产品页面
-- 不因为想显得完整，就在首屏里同时塞入标题、说明、统计、帮助、入口、辅助操作和装饰区
-- 不默认让左右双栏都同等饱满；其中一侧应承担主任务，另一侧承担陪衬或支撑
-
-## Output Standard
-- 最终输出必须能继续落地实现，而不是停留在概念和规划
-- 若已有项目上下文，优先贴近现有风格
-- 若缺少上下文，也要输出成熟、可扩展的默认结构
-- 输出前应自检：页面在常见视口下是否首屏过满、是否存在无意义滚动、是否主次失焦
-
-## AI-Taste Self-Check
-生成 UI 后，必须进行以下自检，每项不通过必须修改：
-
-### Design System Compliance Check
-- ❌ 标题字号是否超过 `rules/ui-design-system.md` 的 type scale 上限？ -> 收回到 H1/H2/H3 合理范围
-- ❌ 单任务页面是否在 `1024x768` 下出现无意义滚动？ -> 压缩字号、spacing、装饰区或双栏权重
-- ❌ 是否使用了非 8pt 体系的随机间距？ -> 改为项目 spacing 或默认 8pt grid
-- ❌ 是否使用了随机颜色、阴影、圆角或超大字号？ -> 改为 design tokens 或项目已有 tokens
-- ❌ Button / Input / Card 是否偏离统一尺寸？ -> 回到项目组件规范或默认组件尺寸
-
-### Product Type Anti-Pattern Check
-根据产品类型检查是否触发了典型反模式（参考 Pre-Generation Checklist 中的反模式表）：
-
-- ❌ 是否使用了该产品类型应避免的配色？（如 SaaS 使用 AI 紫粉渐变）
-- ❌ 是否使用了该产品类型应避免的布局？（如 E-commerce 扁平无层次）
-- ❌ 是否使用了该产品类型应避免的交互？（如 Dashboard 装饰动画）
-- ❌ 是否隐藏了该产品类型的关键信息？（如 E-commerce 隐藏价格、金融隐藏费用）
-
-### Structure Check
-- ❌ 是否所有卡片/区块的高度完全一致？ -> 让它们根据内容自然变化
-- ❌ 是否左右双栏完全等宽？ -> 主区域应占 2/3，侧边栏占 1/3
-- ❌ 是否所有间距都用同一个值（如全部 gap-4）？ -> 应该有层级（gap-2/4/8）
-- ❌ 是否每个区块都有边框+阴影+圆角？ -> 只在需要分隔时使用
-- ❌ 品牌区或 hero 字号是否超过 type scale 上限？ -> 收回到 H1/H2 合理范围
-- ❌ 单任务页面是否因为过大 padding / 标题 / 装饰导致滚动条？ -> 压缩字号、间距或装饰权重
-
-### Density Check
-- ❌ 首屏是否同时出现了 5 种以上的 UI 元素类型？ -> 删减到 3-4 种
-- ❌ 是否每个区块都有"标题+描述+图标+按钮"？ -> 删除不必要的层级
-- ❌ 是否首屏塞满了所有功能入口？ -> 次要功能折叠或下移
-- ❌ 是否没有留白和呼吸感？ -> 增加留白，拉开视觉节奏
-
-### Decoration Check
-- ❌ 是否每个卡片都有渐变背景？ -> 改为纯色或微妙渐变
-- ❌ 是否大量使用 badge / pill / tag？ -> 只在必要时使用
-- ❌ 是否图标过多？ -> 只在关键操作和状态标识时使用
-- ❌ 是否使用了 5 种以上的颜色？ -> 收敛到主色+辅助色+中性色
-
-### Weight Check
-- ❌ 是否所有区域的视觉权重相同？ -> 主区域 60%，次区域 30%，装饰 10%
-- ❌ 是否品牌区、说明区、统计区、帮助区同时争夺第一视觉层级？ -> 只保留一个主视觉焦点
-- ❌ 是否双栏布局中两侧同等饱满？ -> 一侧承担主任务，另一侧陪衬
-
-### Content Check
-- ❌ 是否使用了"欢迎回来，用户名"、"这里是描述文字"等万能占位符？ -> 使用具体业务术语
-- ❌ 是否使用了"查看更多"、"了解详情"等模糊操作？ -> 使用明确操作指令
-
-### Predictability Check
-- ❌ 这个页面是否过于可预测？ -> 检查是否像"高质量模板"而不是"具体产品页面"
-- ❌ 是否可以在 3 秒内猜出这是 AI 生成的？ -> 如果是，重新调整主次关系和视觉节奏
-
-**通过标准:** 以上所有检查项都应该是 ✅，如果有任何 ❌，必须修改后再输出。
-
----
+## Anti-Template Check
+- Avoid generic "title + description + button" repetition.
+- Avoid equal-weight columns.
+- Avoid excessive badges, pills, gradients, icons, and decorative cards.
+- Avoid placeholder copy such as "welcome back" or "description text" when domain-specific copy is needed.
+- The result should feel like a specific product, not a generic AI template.
 
 # Output
-- 页面或功能 UI 的结构说明
-- 关键区块与组件组织方式
-- 状态覆盖说明
-- 平台适配要点
-- 使用的 design tokens / type scale / spacing baseline
-- 常见 viewport 下的首屏检查结论
-- 需要框架 skill 承接的实现边界
+- UI structure and section hierarchy.
+- Component boundaries.
+- State coverage.
+- Interaction and feedback paths.
+- Platform and viewport notes.
+- Design tokens / type scale / spacing baseline.
+- Handoff notes for the implementation skill.
 
 # Handoff to Implementation
-当需要交给 React 实现辅助、其他已有实现 skill 或项目现有代码模式承接时，至少应交接以下内容：
-- 页面结构：页面由哪些区块组成，主次关系如何
-- 组件边界：哪些区域应独立成组件，哪些保持在页面内
-- 状态设计：需要覆盖哪些 `loading / empty / error / success / disabled` 状态
-- 交互流程：关键操作的触发、处理、反馈路径
-- 平台差异：当前平台下需要特别处理的布局、触控、滚动或反馈点
-- 实现边界：哪些部分已经由本 skill 决定，哪些部分留给框架 skill 落地
-
-禁止只交付纯概念说明而没有可继续实现的结构信息。
+When handing off to React or another implementation layer, include:
+- page sections and hierarchy
+- component boundaries
+- state design
+- interaction flow
+- platform constraints
+- implementation boundaries already decided here
 
 # Memory Usage
-- 若形成项目级 UI 结构模式，写入 `memory/projects/{project}.md`
-- 若形成跨项目稳定可复用的质量检查模式，提议升级到 `memory/global/reusable-patterns.md` 或对应 rules
+- Record project-level UI structure patterns in project memory.
+- Propose reusable cross-project quality patterns only after repeated evidence.

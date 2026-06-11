@@ -216,7 +216,7 @@ your-project/
 
 ## Codex Agent OS Runtime
 
-Codex Agent OS Runtime 是显式运行态，用 SQLite 记录任务推进过程中的关键状态，并提供轻量控制器来扫描能力链路、评估策略、选择下一步、规划验证和规划恢复。它不是后台常驻大脑，不会自动改代码、自动升级规则或自动写长期记忆；它只在 gate 和执行过程中由 Agent 显式运行并写入可审查记录。
+Codex Agent OS Runtime 是显式运行态，用 SQLite 记录任务推进过程中的关键状态，并提供控制器来识别上下文、扫描能力链路、评估策略、拆分任务、推荐 skill、选择下一步、规划并执行验证、规划恢复和审查演化候选。它不是后台常驻大脑，不会自动改代码、自动升级规则或自动写长期记忆；它只在 gate 和执行过程中由 Agent 显式运行并写入可审查记录。
 
 Runtime 命令统一从 `scripts/agent-runtime.py` 执行；`scripts/memory-tools.py` 只负责记忆检索、沉淀、导入和统计。
 
@@ -235,6 +235,24 @@ Runtime 补齐 10 个核心 Agent 能力：
 | Recovery / Rollback System | `recovery_points` / `runtime-plan-recovery` | 规划并记录恢复策略、影响文件和回滚依据 |
 | Self-Improvement Governance | `improvement_reviews` | 记录演化候选、审查状态和边界 |
 
+完整 Agent Loop 覆盖：
+
+```text
+runtime-detect-context
+-> runtime-scan-capability
+-> runtime-evaluate-policy
+-> runtime-plan-tasks
+-> runtime-run
+-> runtime-complete-task
+-> runtime-detect-validation-profile
+-> runtime-run-verification
+-> runtime-create-checkpoint / runtime-mark-recovery
+-> runtime-select-skills
+-> runtime-final-check
+-> runtime-review-improvements
+-> runtime-report
+```
+
 Runtime 触发原则：
 
 - L1 简单局部修改：通常不需要 runtime 记录，但必须说明验证。
@@ -251,13 +269,35 @@ python scripts/agent-runtime.py runtime-record --kind capability --project my-pr
 
 python scripts/agent-runtime.py runtime-record --kind policy --project my-project --goal-id goal-1 --decision-type plan --decision "full-plan-required" --rationale "Capability is broken-chain and task is L3" --evidence "Capability discovery result"
 
+python scripts/agent-runtime.py runtime-detect-context --request "Implement phone login" --files src/pages/Login.tsx server/auth.ts --record
+
+python scripts/agent-runtime.py runtime-run --project my-project --request "Implement phone login" --capability phone-login --term phone login auth --files src/pages/Login.tsx server/auth.ts --signal auth --use-memory --record
+
 python scripts/agent-runtime.py runtime-scan-capability --project my-project --name phone-login --term phone login --record
 
 python scripts/agent-runtime.py runtime-evaluate-policy --project my-project --scale L3 --capability-status broken-chain --task-layer Integration API --signal auth --record
 
+python scripts/agent-runtime.py runtime-plan-tasks --project my-project --goal-id goal-1 --request "Implement phone login" --scale L3 --capability-status broken-chain --record
+
+python scripts/agent-runtime.py runtime-select-skills --project my-project --request "Implement phone login" --stack "React Node" --record
+
+python scripts/agent-runtime.py runtime-complete-task --project my-project --id run-1-task-1 --evidence "Implemented and verified" --complete-goal
+
 python scripts/agent-runtime.py runtime-plan-verification --project my-project --task-layer Integration API --scale L3 --files src/pages/Login.tsx server/auth.ts --record
 
+python scripts/agent-runtime.py runtime-detect-validation-profile --project my-project --stack Python --task-layer Runtime --files scripts/agent-runtime.py
+
+python scripts/agent-runtime.py runtime-run-verification --project my-project --command "python -m py_compile scripts\\agent-runtime.py scripts\\codex_store.py" --record
+
 python scripts/agent-runtime.py runtime-plan-recovery --project my-project --files src/pages/Login.tsx server/auth.ts --checkpoint HEAD --record
+
+python scripts/agent-runtime.py runtime-create-checkpoint --project my-project --files src/pages/Login.tsx server/auth.ts
+
+python scripts/agent-runtime.py runtime-final-check --project my-project --run-id run-1 --require-recovery --require-skills
+
+python scripts/agent-runtime.py runtime-review-improvements --project "*" --record
+
+python scripts/agent-runtime.py runtime-report --project my-project --run-id run-1
 
 python scripts/agent-runtime.py runtime-next --project my-project --advance
 

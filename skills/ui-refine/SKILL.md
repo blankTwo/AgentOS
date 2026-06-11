@@ -1,55 +1,40 @@
 ---
 name: ui-refine
-description: 用于 UI Layer 的已有页面优化，统一页面风格、减少原生拼装感、替换不规范 Tailwind 写法、优先复用组件库与已有组件，并提升界面一致性。
+description: Use for UI Layer refinement of existing pages: align visual style, reduce native assembly feel, replace inconsistent Tailwind usage, reuse component libraries and existing components, and improve UI consistency.
 ---
 
 # Trigger Keywords
-- 优化UI
-- 美化页面
-- 统一样式
-- 调整布局
-- 改好看一点
-- 改成和其他页面一致
-- 替换原生标签
-- 统一 Tailwind 写法
+- UI polish
+- align style
+- make it look better
+- replace raw tags
+- improve layout
+- unify spacing
+- refine Tailwind
+- make the page feel more product-ready
 
 # When to Use
-当任务包含以下目标时使用：
-- 页面风格不统一
-- 使用了过多原生 HTML 拼装 UI
-- Tailwind 写法和项目现有风格不一致
-- 用户要求优化界面、统一风格、提升观感
-- 需要向组件库风格靠拢
+- Existing UI needs visual consistency.
+- A page feels too raw or assembled from native elements.
+- Tailwind values are inconsistent.
+- Existing components should be reused.
+- Layout, spacing, hierarchy, or visual rhythm needs improvement.
 
 # Steps
-1. 先寻找项目中 2~3 个相似页面
-2. 提取这些页面的共同模式：
-   - 布局结构
-   - 组件使用方式
-   - Tailwind 命名习惯
-   - 字号/间距/圆角/按钮风格
-3. 检查当前页面问题：
-   - 是否滥用原生标签
-   - 是否滥用任意值
-   - 是否存在与现有系统不一致的 class
-   - 是否缺少 hover / disabled / empty / loading 状态
-4. 优先替换为：
-   - 项目已有组件
-   - 组件库组件
-   - 项目统一 Tailwind 写法
-5. 保持业务逻辑不变，只优化表现层和结构层
-6. 输出：
-   - 发现了哪些不一致
-   - 做了哪些统一
-   - 如何验证表现与交互
-   - 还有哪些剩余风险
+1. Inspect similar existing pages and components.
+2. Read `rules/ui-design-system.md` and `rules/ui-consistency.md`.
+3. Identify inconsistent typography, spacing, color, radius, shadow, and component usage.
+4. Prefer existing components and tokens.
+5. Replace ad hoc Tailwind values with project patterns.
+6. Verify responsive behavior and common viewport fit.
+7. Keep changes scoped to the requested UI surface.
 
 # Output
-- 不一致点
-- 替换策略
-- 统一后的结构说明
-- 验证结果与剩余风险
+- UI inconsistencies found.
+- Refinement strategy.
+- Files changed.
+- Viewports or interaction states checked.
+- Remaining visual risks.
 
 # Memory Usage
-- 若形成项目级 UI 模式，写入 memory/projects/{project}.md
-- 若形成跨项目可复用规范，提议升级到 rules/ui-consistency.md
+Record a memory item when a project-specific UI pattern, token convention, or recurring visual pitfall is discovered.

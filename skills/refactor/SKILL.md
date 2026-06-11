@@ -1,35 +1,33 @@
 ---
 name: refactor
-description: 用于在不改变对外行为的前提下优化结构、可读性、复用性。
+description: Use to improve structure, readability, reuse, responsibility boundaries, and maintainability without changing external behavior.
 ---
 
 # When to Use
-- 逻辑重复
-- 文件过大
-- 职责不清
-- 结构难维护
-- 用户明确要求优化或重构
+- Duplicated logic.
+- Files or functions are too large.
+- Responsibilities are unclear.
+- Structure is hard to maintain.
+- The user explicitly asks to optimize or refactor.
+- Behavior should remain the same.
 
 # Steps
-1. 明确重构目标
-2. 标记影响范围
-3. 确认行为边界不能变
-4. 判断是否需要 plan、worktree、回滚预案或 review gate
-5. 先建立行为保护：测试、类型检查、构建或手工关键路径
-6. 小步调整
-7. 每一步保持可验证
-8. 更新必要测试或验证说明
-9. 若形成稳定模式，考虑写入 global patterns
+1. Define the refactor goal.
+2. Mark the impact scope.
+3. Confirm the behavior boundary that must not change.
+4. Make small verifiable changes.
+5. Keep each step testable.
+6. Update tests or validation notes when needed.
+7. Record stable reusable patterns when they emerge.
 
 # Output
-- 重构目标
-- 影响范围
-- 行为是否保持不变
-- 后续收益
-- 验证结果与剩余风险
+- Refactor goal.
+- Impact scope.
+- Behavior compatibility statement.
+- Maintenance benefit.
+- Validation performed.
 
 ## Boundaries
-- 重构不得隐式改变接口、数据结构、权限或用户可见行为
-- 若发现必须改变行为，应停止并重新按 feature/API/bugfix 任务处理
-- 大范围重构应优先分批落地，避免一次性改动难以验证
-- 不为了抽象而抽象，只有在减少真实复杂度或重复时才引入新结构
+- Do not mix unrelated feature work into a refactor.
+- Do not change public contracts unless the user requested it.
+- Do not rename or move broadly without validation.

@@ -1,38 +1,34 @@
 # Project Memory: unknown-project
 
 ## Summary
-- Slug: unknown-project
-- Detection Source: fallback
-- Confidence: low
-- Description: 未识别项目时的兜底项目记忆
-- Primary Stack:
-- Secondary Stack:
-- Main Modules:
-- Constraints:
-- Main Patterns:
-- Known Pitfalls:
+
+- Project: unknown-project
+- Stack: Unknown
+- Architecture: Unknown
+- Current focus: none
+- Key constraints: identify the real project before recording project-specific details
 
 ## Context
-- Description: 未识别项目时的兜底项目记忆
-- Stack:
-- Main Modules:
-- Constraints:
+
+- Product/domain: unknown
+- Important directories: unknown
+- Main entry points: unknown
+- Environment notes: none
 
 ## Current Status
-- Done:
-- In Progress:
-- Todo:
+
+- Active features: none
+- Pending validation: none
+- Known risks: project identity is unresolved
 
 ## Decisions
 
+No decisions recorded.
+
 ## Pitfalls
 
+No pitfalls recorded.
+
 ## Patterns
-- Name:
-- Trigger:
-- Count:
-- Validation:
-- Scope:
-- Candidate:
-- Pattern:
-- Note:
+
+No patterns recorded.

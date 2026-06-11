@@ -37,7 +37,7 @@ Run `record-session` before final response when a task includes any of these:
 - Bugfix with clear root cause, repeat risk, or future diagnostic value
 - Reusable implementation pattern, UI pattern, decision, validation lesson, or project constraint
 - Agent OS changes to `AGENTS.md`, `rules/`, `skills/`, memory policy, or memory tooling
-- User explicitly asks to remember, record, or沉淀 something
+- User explicitly asks to remember, record, preserve, or use something later
 
 Run `record-item` as well when the task produced a reusable lesson, feature, decision, pattern, validation result, or stable user preference.
 

@@ -1,39 +1,35 @@
 ---
 name: write-tests
-description: 用于为现有逻辑补充测试或为新逻辑建立可回归验证。
+description: Use to add tests for existing logic or create regression coverage for new behavior.
 ---
 
 # When to Use
-- 用户要求补测试
-- 修 bug 后需要防回归
-- 关键业务逻辑缺少保护
-- 重构后需要确保行为稳定
+- The user asks for tests.
+- A bugfix needs regression protection.
+- Core business logic lacks coverage.
+- Refactoring needs behavior protection.
+- New logic has meaningful edge cases.
 
 # Steps
-1. 明确被测对象
-2. 明确要保护的可观察行为
-3. 列出主场景
-4. 列出关键边界
-5. 若属于 TDD 场景，先写能失败的测试，再实现或修复
-6. 编写最小有效测试
-7. 避免把实现细节当成断言目标
-8. 运行测试并确认失败/通过结果可解释
-9. 确保失败时可定位
+1. Identify the behavior under test.
+2. List the main scenarios.
+3. List critical boundaries and failures.
+4. Write the smallest effective tests.
+5. Avoid asserting implementation details when behavior is enough.
+6. Make failures easy to diagnose.
 
 # Output
-- 测试覆盖范围
-- 关键断言
-- 执行命令与结果
-- 未覆盖风险
+- Test coverage scope.
+- Key assertions.
+- Command used to run tests.
+- Remaining uncovered risk.
 
 ## TDD Use
-- 遵循 `rules/testing.md` 的 Risk-Based TDD 判断
-- 测试先行时，应先看到目标测试失败，再实现到通过
-- bugfix 回归测试应覆盖复现路径，而不是只覆盖修复后的内部函数
-- refactor 测试应保护外部行为不变
+- Prefer test-first for core business logic, data handling, and complex edge cases.
+- For bugfixes, add the smallest regression test after root cause is confirmed.
+- UI visual changes and documentation can use targeted validation instead.
 
 ## Test Quality
-- 优先断言用户可观察行为、接口契约、数据结果和错误处理
-- 避免过度 mock 让测试脱离真实调用链
-- 避免只验证实现细节、样式 class 或临时结构
-- 测试命名应说明场景和预期结果
+- Tests should prove behavior, not mirror implementation.
+- Keep fixtures narrow and readable.
+- Avoid brittle snapshots unless the project already relies on them.

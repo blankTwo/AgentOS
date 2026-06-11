@@ -13,6 +13,18 @@ python scripts/agent-runtime.py --help
 ```
 
 Available runtime commands:
+- `runtime-detect-context`
+- `runtime-run`
+- `runtime-select-skills`
+- `runtime-plan-tasks`
+- `runtime-complete-task`
+- `runtime-detect-validation-profile`
+- `runtime-run-verification`
+- `runtime-create-checkpoint`
+- `runtime-mark-recovery`
+- `runtime-final-check`
+- `runtime-review-improvements`
+- `runtime-report`
 - `runtime-record`
 - `runtime-list`
 - `runtime-summary`
@@ -21,6 +33,46 @@ Available runtime commands:
 - `runtime-next`
 - `runtime-plan-verification`
 - `runtime-plan-recovery`
+
+---
+
+## Run The Full Agent Loop
+
+Use `runtime-run` for L2+ work when the agent needs one command to prepare the full operating loop.
+
+```bash
+python scripts/agent-runtime.py runtime-run \
+  --project my-project \
+  --request "Implement phone login" \
+  --capability phone-login \
+  --term phone login auth \
+  --files src/pages/Login.tsx server/auth.ts \
+  --signal auth \
+  --use-memory \
+  --record
+```
+
+It outputs and optionally records:
+- context detection
+- capability state
+- policy decisions
+- runtime task queue
+- skill recommendations
+- verification plan
+- recovery plan
+
+---
+
+## Detect Context
+
+```bash
+python scripts/agent-runtime.py runtime-detect-context \
+  --request "Implement phone login" \
+  --files src/pages/Login.tsx server/auth.ts \
+  --record
+```
+
+This produces project, stack, task layers, task scale, intent, confidence, and evidence.
 
 ---
 
@@ -84,6 +136,8 @@ Capability status values:
 
 Documentation-only hits must not prove a capability exists. If scanner output conflicts with manual code inspection, manual evidence wins.
 
+Use `--use-memory` to include SQLite memory hits as context. Memory hits can raise `absent` to `unconfirmed`, but they must not prove a current implementation exists without code evidence.
+
 ---
 
 ## Evaluate Policy Decisions
@@ -110,6 +164,37 @@ Policy decision types:
 - `worktree`
 - `performance`
 - `execution-mode`
+
+---
+
+## Plan Tasks
+
+```bash
+python scripts/agent-runtime.py runtime-plan-tasks \
+  --project my-project \
+  --goal-id goal-phone-login \
+  --request "Implement phone login" \
+  --scale L3 \
+  --capability-status broken-chain \
+  --record
+```
+
+This creates planner, executor, verifier, and reviewer task records with order indexes.
+
+---
+
+## Select Skills
+
+```bash
+python scripts/agent-runtime.py runtime-select-skills \
+  --project my-project \
+  --request "Implement phone login" \
+  --stack "React Node" \
+  --record
+```
+
+The output is a recommendation list with rationale. It does not auto-load or execute skills.
+Recommendations are derived from task layers and real `skills/*/SKILL.md` metadata.
 
 ---
 
@@ -145,6 +230,29 @@ python scripts/agent-runtime.py runtime-plan-verification \
 
 ---
 
+## Run Verification
+
+Detect a stack-specific validation profile first:
+
+```bash
+python scripts/agent-runtime.py runtime-detect-validation-profile \
+  --project my-project \
+  --stack Python \
+  --task-layer Runtime \
+  --files scripts/agent-runtime.py
+```
+
+```bash
+python scripts/agent-runtime.py runtime-run-verification \
+  --project my-project \
+  --command "python -m py_compile scripts\\agent-runtime.py scripts\\codex_store.py" \
+  --record
+```
+
+By default, only safe verification prefixes are executable. Use `--allow-unsafe` only when the command has already been inspected.
+
+---
+
 ## Plan Recovery
 
 Use this for high-risk tasks.
@@ -162,6 +270,74 @@ python scripts/agent-runtime.py runtime-plan-recovery \
 
 ---
 
+## Manage Recovery State
+
+```bash
+python scripts/agent-runtime.py runtime-create-checkpoint \
+  --project my-project \
+  --files src/pages/Login.tsx src/api/auth.ts
+
+python scripts/agent-runtime.py runtime-mark-recovery \
+  --id 1 \
+  --status obsolete \
+  --reason "Validation passed"
+```
+
+---
+
+## Final Gate Check
+
+```bash
+python scripts/agent-runtime.py runtime-final-check \
+  --project my-project \
+  --run-id run-phone-login \
+  --require-recovery \
+  --require-skills
+```
+
+The command checks runtime context, policy records, verification records, recovery points, skill recommendations, and open tasks.
+Use `--goal-id` or `--run-id` to avoid older project records polluting the final check.
+
+---
+
+## Complete Runtime Tasks
+
+```bash
+python scripts/agent-runtime.py runtime-complete-task \
+  --project my-project \
+  --id run-phone-login-task-1 \
+  --evidence "Implemented and verified" \
+  --complete-goal
+```
+
+This closes durable queue records with evidence and can mark the goal completed when no open tasks remain.
+
+---
+
+## Review Improvements
+
+```bash
+python scripts/agent-runtime.py runtime-review-improvements \
+  --project "*" \
+  --record
+```
+
+This reviews candidate skill/rule evidence and writes improvement review records. It never promotes a candidate by itself.
+
+---
+
+## Runtime Report
+
+```bash
+python scripts/agent-runtime.py runtime-report \
+  --project my-project \
+  --run-id run-phone-login
+```
+
+The report returns goal, task, policy, verification, recovery, and skill recommendation evidence for the scoped run or goal.
+
+---
+
 ## List And Summarize Runtime
 
 ```bash
@@ -175,6 +351,8 @@ python scripts/agent-runtime.py runtime-summary --project my-project
 ## Rules
 
 - Do not use `scripts/memory-tools.py` for runtime commands.
+- Prefer `runtime-run` for L2+ tasks when a complete loop is needed.
+- Scope `runtime-final-check` and `runtime-report` with `--goal-id` or `--run-id` when possible.
 - Do not treat runtime records as raw transcript storage.
 - Do not store secrets, credentials, or noisy command logs.
 - Do not auto-promote improvement records into skills or rules.

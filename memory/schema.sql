@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS schema_meta (
 );
 
 INSERT INTO schema_meta(key, value)
-VALUES ('schema_version', '3')
+VALUES ('schema_version', '4')
 ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now');
 
 CREATE TABLE IF NOT EXISTS memory_items (
@@ -285,6 +285,8 @@ CREATE TABLE IF NOT EXISTS agent_goals (
     current_phase TEXT,
     success_criteria TEXT,
     evidence TEXT,
+    source_request TEXT,
+    final_result TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -317,6 +319,9 @@ CREATE TABLE IF NOT EXISTS agent_tasks (
     plan TEXT,
     evidence TEXT,
     blocker TEXT,
+    depends_on TEXT,
+    order_index INTEGER NOT NULL DEFAULT 0,
+    completed_evidence TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY(goal_id) REFERENCES agent_goals(id) ON DELETE SET NULL
@@ -334,6 +339,15 @@ CREATE TABLE IF NOT EXISTS agent_observations (
     source TEXT NOT NULL,
     summary TEXT NOT NULL,
     evidence TEXT,
+    observation_type TEXT NOT NULL DEFAULT 'manual' CHECK (observation_type IN (
+        'file',
+        'test',
+        'memory',
+        'git',
+        'user',
+        'runtime',
+        'manual'
+    )),
     severity TEXT NOT NULL DEFAULT 'info' CHECK (severity IN (
         'info',
         'warning',
@@ -365,6 +379,10 @@ CREATE TABLE IF NOT EXISTS capability_nodes (
     data_state TEXT,
     verification TEXT,
     evidence TEXT,
+    confidence REAL NOT NULL DEFAULT 0.7 CHECK (confidence >= 0 AND confidence <= 1),
+    memory_evidence TEXT,
+    code_evidence TEXT,
+    test_evidence TEXT,
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(project, name)
@@ -402,6 +420,13 @@ CREATE TABLE IF NOT EXISTS policy_decisions (
     decision TEXT NOT NULL,
     rationale TEXT,
     evidence TEXT,
+    severity TEXT NOT NULL DEFAULT 'normal' CHECK (severity IN (
+        'low',
+        'normal',
+        'high',
+        'critical'
+    )),
+    blocking INTEGER NOT NULL DEFAULT 0 CHECK (blocking IN (0, 1)),
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY(goal_id) REFERENCES agent_goals(id) ON DELETE SET NULL,
     FOREIGN KEY(task_id) REFERENCES agent_tasks(id) ON DELETE SET NULL
@@ -425,6 +450,16 @@ CREATE TABLE IF NOT EXISTS verification_runs (
         'not-run'
     )),
     evidence TEXT,
+    exit_code INTEGER,
+    stdout_summary TEXT,
+    failure_type TEXT CHECK (failure_type IN (
+        'implementation',
+        'test',
+        'environment',
+        'requirement',
+        'unknown'
+    )),
+    ran_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY(goal_id) REFERENCES agent_goals(id) ON DELETE SET NULL,
     FOREIGN KEY(task_id) REFERENCES agent_tasks(id) ON DELETE SET NULL
@@ -448,6 +483,9 @@ CREATE TABLE IF NOT EXISTS recovery_points (
         'obsolete'
     )),
     evidence TEXT,
+    checkpoint_ref TEXT,
+    applied_at TEXT,
+    obsolete_reason TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY(goal_id) REFERENCES agent_goals(id) ON DELETE SET NULL,
     FOREIGN KEY(task_id) REFERENCES agent_tasks(id) ON DELETE SET NULL
@@ -487,3 +525,81 @@ CREATE TABLE IF NOT EXISTS improvement_reviews (
 
 CREATE INDEX IF NOT EXISTS idx_improvement_reviews_project ON improvement_reviews(project);
 CREATE INDEX IF NOT EXISTS idx_improvement_reviews_status ON improvement_reviews(status);
+
+CREATE TABLE IF NOT EXISTS runtime_contexts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project TEXT NOT NULL,
+    request TEXT NOT NULL,
+    stack TEXT NOT NULL,
+    stack_confidence TEXT NOT NULL CHECK (stack_confidence IN (
+        'high',
+        'medium',
+        'low'
+    )),
+    task_layers TEXT,
+    scale TEXT NOT NULL CHECK (scale IN ('L1', 'L2', 'L3', 'L4')),
+    intent TEXT,
+    files TEXT,
+    evidence TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_runtime_contexts_project ON runtime_contexts(project);
+CREATE INDEX IF NOT EXISTS idx_runtime_contexts_created_at ON runtime_contexts(created_at);
+
+CREATE TABLE IF NOT EXISTS runtime_runs (
+    id TEXT PRIMARY KEY,
+    project TEXT NOT NULL,
+    request TEXT NOT NULL,
+    goal_id TEXT,
+    status TEXT NOT NULL DEFAULT 'planned' CHECK (status IN (
+        'planned',
+        'ready',
+        'running',
+        'completed',
+        'blocked',
+        'failed'
+    )),
+    context_id INTEGER,
+    capability_name TEXT,
+    capability_status TEXT CHECK (capability_status IN (
+        'complete',
+        'partial',
+        'broken-chain',
+        'absent',
+        'unconfirmed'
+    )),
+    execution_mode TEXT,
+    summary TEXT,
+    next_action TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY(goal_id) REFERENCES agent_goals(id) ON DELETE SET NULL,
+    FOREIGN KEY(context_id) REFERENCES runtime_contexts(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_runtime_runs_project ON runtime_runs(project);
+CREATE INDEX IF NOT EXISTS idx_runtime_runs_status ON runtime_runs(status);
+
+CREATE TABLE IF NOT EXISTS skill_recommendations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project TEXT NOT NULL,
+    goal_id TEXT,
+    run_id TEXT,
+    task_layers TEXT,
+    stack TEXT,
+    skill_name TEXT NOT NULL,
+    rationale TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'recommended' CHECK (status IN (
+        'recommended',
+        'used',
+        'skipped'
+    )),
+    evidence TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY(goal_id) REFERENCES agent_goals(id) ON DELETE SET NULL,
+    FOREIGN KEY(run_id) REFERENCES runtime_runs(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_skill_recommendations_project ON skill_recommendations(project);
+CREATE INDEX IF NOT EXISTS idx_skill_recommendations_skill ON skill_recommendations(skill_name);

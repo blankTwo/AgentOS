@@ -44,11 +44,23 @@ Runtime records should summarize state. Do not store raw transcripts, secrets, c
 
 Runtime controllers convert gate decisions into explicit command outputs:
 
+- `runtime-detect-context`: detects project, stack, task layers, task scale, intent, confidence, and evidence.
+- `runtime-run`: runs the full planning loop: context, capability, policy, tasks, skill recommendations, verification plan, and recovery plan.
 - `runtime-scan-capability`: scans memory-adjacent project files and classifies capability state as `complete`, `partial`, `broken-chain`, `absent`, or `unconfirmed`.
 - `runtime-evaluate-policy`: evaluates task scale, capability state, task layers, and risk signals into plan/TDD/review/rollback/worktree/performance decisions.
+- `runtime-plan-tasks`: creates a durable runtime task queue from context and capability state.
+- `runtime-select-skills`: recommends task-layer skills with rationale.
+- `runtime-complete-task`: marks durable task records completed with evidence and can complete the goal when no open tasks remain.
 - `runtime-next`: reads active goals, pending tasks, capability state, and failed verification to choose the next action.
 - `runtime-plan-verification`: builds a verification checklist from task layer, scale, and affected files.
+- `runtime-detect-validation-profile`: detects stack-specific validation commands for the task.
+- `runtime-run-verification`: executes allowed verification commands and records exit code, result, summary, and failure type.
 - `runtime-plan-recovery`: builds a recovery strategy from checkpoint, affected files, migration, and feature-flag inputs.
+- `runtime-create-checkpoint`: records an available recovery checkpoint.
+- `runtime-mark-recovery`: marks a recovery point as used, available, planned, or obsolete.
+- `runtime-final-check`: checks final gate completeness before handoff and should be scoped with `--goal-id` or `--run-id` for multi-task projects.
+- `runtime-review-improvements`: reviews candidate skill/rule evidence and returns promotion readiness.
+- `runtime-report`: generates a scoped audit report for a run or goal.
 
 Controllers may run in dry output mode or with `--record` to write runtime records. Recorded controller output is evidence, not a substitute for code inspection or real validation.
 
@@ -70,6 +82,7 @@ Capability state feeds Planning Gate:
 Scanner evidence boundary:
 - Documentation, README, AGENTS, rules, and tool docs can explain a capability, but they do not prove the product capability exists.
 - `runtime-scan-capability` must treat implementation files, API clients, backend routes, data models, and tests as stronger evidence than documentation.
+- API/client/backend route token overlap is stronger evidence than isolated file hits.
 - A capability must not be marked `complete` from documentation-only hits.
 - If scanner output conflicts with manual code inspection, manual evidence wins and the capability record must be corrected.
 
@@ -135,11 +148,23 @@ python scripts/agent-runtime.py runtime-record --kind recovery ...
 python scripts/agent-runtime.py runtime-record --kind improvement ...
 python scripts/agent-runtime.py runtime-list --kind task --project my-project
 python scripts/agent-runtime.py runtime-summary --project my-project
+python scripts/agent-runtime.py runtime-detect-context --request "Implement phone login" --files src/Login.tsx server/auth.ts --record
+python scripts/agent-runtime.py runtime-run --project my-project --request "Implement phone login" --capability phone-login --term phone login auth --record
 python scripts/agent-runtime.py runtime-scan-capability --project my-project --name phone-login --term phone login --record
 python scripts/agent-runtime.py runtime-evaluate-policy --project my-project --scale L3 --capability-status broken-chain --task-layer Integration API --signal auth --record
+python scripts/agent-runtime.py runtime-plan-tasks --project my-project --goal-id goal-phone-login --request "Implement phone login" --scale L3 --capability-status broken-chain --record
+python scripts/agent-runtime.py runtime-select-skills --project my-project --request "Implement phone login" --stack "React Node" --record
+python scripts/agent-runtime.py runtime-complete-task --project my-project --id run-1-task-1 --evidence "Implemented and verified" --complete-goal
 python scripts/agent-runtime.py runtime-next --project my-project --advance
 python scripts/agent-runtime.py runtime-plan-verification --project my-project --task-layer Runtime Integration --scale L3 --record
+python scripts/agent-runtime.py runtime-detect-validation-profile --project my-project --stack Python --task-layer Runtime --files scripts/agent-runtime.py
+python scripts/agent-runtime.py runtime-run-verification --project my-project --command "python -m py_compile scripts\\agent-runtime.py scripts\\codex_store.py" --record
 python scripts/agent-runtime.py runtime-plan-recovery --project my-project --files src/Login.tsx server/auth.ts --checkpoint HEAD --record
+python scripts/agent-runtime.py runtime-create-checkpoint --project my-project --files src/Login.tsx server/auth.ts
+python scripts/agent-runtime.py runtime-mark-recovery --id 1 --status obsolete --reason "validation passed"
+python scripts/agent-runtime.py runtime-final-check --project my-project --run-id run-1 --require-recovery --require-skills
+python scripts/agent-runtime.py runtime-report --project my-project --run-id run-1
+python scripts/agent-runtime.py runtime-review-improvements --project "*" --record
 ```
 
 Use `tools/agent-runtime.md` for command examples.

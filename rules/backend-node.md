@@ -1,17 +1,17 @@
 # Backend Node Rules
 
 ## API
-- 输入校验前置
-- 错误返回统一格式
-- 不把内部异常直接暴露给调用方
-- controller / service / repository 尽量分层
+- Validate input before service logic.
+- Use consistent error response format.
+- Do not expose internal exceptions to callers.
+- Keep controller / service / repository boundaries clear.
 
 ## Data
-- 数据库操作明确边界
-- 修改型操作优先考虑事务
-- schema / model 变化必须评估兼容性
+- Make database operation boundaries explicit.
+- Prefer transactions for mutating multi-step operations.
+- Evaluate compatibility for schema or model changes.
 
 ## Reliability
-- 日志要能支持定位
-- 避免 silent failure
-- 外部依赖要有失败分支处理
+- Logs must support diagnosis.
+- Avoid silent failure.
+- External dependencies need failure branches.

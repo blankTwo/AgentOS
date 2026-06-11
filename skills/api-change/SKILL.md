@@ -1,42 +1,38 @@
 ---
 name: api-change
-description: 用于新增或修改 API Layer 相关能力，包括接口、请求参数、响应结构、鉴权、错误处理、服务逻辑、数据写入和前后端契约。
+description: Use for API Layer changes, including endpoints, request parameters, response structures, authentication, error handling, service logic, data writes, and frontend/backend contracts.
 ---
 
 # When to Use
-- 新增接口
-- 修改接口字段
-- 修改数据库写入逻辑
-- 调整请求/响应协议
-- 调整鉴权、权限、错误码或状态码
-- 修改前后端接口契约
-- 接入第三方 API 或 webhook
+- Add a new endpoint.
+- Modify request parameters or response shape.
+- Change auth, permission, or error semantics.
+- Change service logic behind an API.
+- Adjust frontend/backend contract behavior.
+- Touch API-related data writes or consistency logic.
 
 # Steps
-1. 明确接口目标、调用方和任务层影响范围
-2. 明确请求参数、响应结构、状态码、错误码和鉴权要求
-3. 确认兼容性影响：已有调用方、字段变更、默认值、版本策略
-4. 判断数据影响：schema、事务、幂等、缓存、历史数据
-5. 按项目结构调整 controller / handler / service / repository 等层
-6. 明确异常分支和权限边界
-7. 按 `rules/testing.md` 判断是否需要测试先行
-8. 验证调用链：成功路径、错误路径、权限路径、边界输入
-9. 记录协议变化和剩余风险
+1. Identify the affected API contract: route, method, request, response, auth, errors, and side effects.
+2. Inspect existing API patterns before adding new structure.
+3. Check callers and consumers before changing the contract.
+4. Prefer backward-compatible changes when reasonable.
+5. Update validation or tests that prove the contract.
+6. Record API decisions when the contract affects future work.
 
 # Output
-- 接口变更点
-- 兼容性影响
-- 数据与权限影响
-- 错误处理与边界
-- 验证结果与剩余风险
+- Contract summary.
+- Impacted callers and files.
+- Data or auth implications.
+- Validation performed.
+- Remaining compatibility risks.
 
 ## Contract Discipline
-- 不要只改实现而忽略调用方契约
-- 字段含义变化必须明确命名、默认值和兼容策略
-- 请求/响应示例应来自实际代码或已确认的接口约定
-- 若接口影响 UI、SDK、第三方系统或后台任务，必须标出消费者
+- Do not silently change a public response shape.
+- Do not weaken auth or permission checks.
+- Do not create a frontend-only API assumption without backend evidence.
+- For cross-layer changes, verify both the client call and backend handler.
 
 ## Validation
-- API 行为变化优先补接口测试或服务层测试
-- 无测试框架时，至少给出可执行请求、输入样例、预期响应和错误路径验证
-- 涉及数据写入时，验证成功写入、失败回滚和重复请求行为
+- Prefer API tests, integration tests, or endpoint smoke checks.
+- For auth or permission changes, include negative cases.
+- For data writes, verify persistence and rollback or recovery assumptions.

@@ -1,65 +1,39 @@
 ---
 name: bugfix
-description: 用于定位和修复报错、异常行为、边界条件失败、状态不一致等问题。
+description: Use to diagnose and fix errors, abnormal behavior, failed edge cases, inconsistent state, and regressions.
 ---
 
 # When to Use
-当任务包含以下特征时使用：
-- 有报错日志
-- 有复现路径
-- 行为与预期不一致
-- 某功能之前正常、现在异常
-- 状态或界面不同步
+- Runtime errors or build errors.
+- UI or API behavior differs from expectation.
+- State inconsistency.
+- Edge-case failures.
+- Regressions after a change.
+- User reports that something does not work.
 
 # Steps
-1. 明确现象
-2. 明确输入 / 操作 / 预期 / 实际结果
-3. 复现问题或说明无法复现的原因
-4. 找到触发入口
-5. 沿调用链或数据流定位影响范围
-6. 收集最小但充分的证据链
-7. 形成单一优先假设，并用代码、日志或实验验证
-8. 先说明根因，再做完整但不过度扩散的必要修改
-9. 确认根因后，优先补最小回归测试；无法补测试时说明替代验证
-10. 验证主路径
-11. 验证相关边界
-12. 记录到 memory
+1. Reproduce or locate the failure signal.
+2. Collect evidence: error text, logs, affected files, tests, screenshots, or observed behavior.
+3. Identify the root cause before changing code.
+4. Make the smallest complete fix that addresses the root cause.
+5. Add or run regression validation.
+6. Record the lesson when the bug is likely to recur.
 
 # Output
-- 结论
-- 证据
-- 原因判断
-- 修改点或解决方案
-- 风险范围
-- 验证结果与剩余风险
-
-## Report Template
-用于排查、定位、修复类问题时，优先使用以下结构输出：
-
-- 结论：
-  - 先直接说明问题是否已定位、是否已修复，或当前最可信判断是什么
-- 证据：
-  - 列出支持结论的日志、代码位置、复现结果、抓包、截图、数据换算结果等
-  - 证据应尽量具体，避免只写主观判断
-- 原因判断：
-  - 说明根因或候选根因
-  - 若仍未完全确认，必须明确哪些是已证实、哪些是推断
-- 建议/解决方案：
-  - 若已修复，说明采用了什么必要修改
-  - 若未修复，给出下一步最合理的处理方案
+- Confirmed symptom.
+- Root cause.
+- Fix summary.
+- Validation result.
+- Remaining risk.
 
 ## Evidence Standard
-- 没有证据支撑时，不要把推测写成结论
-- 至少给出 2 到 3 条关键证据再下根因判断
-- 若无法拿到完整证据，要明确缺口而不是跳过
-- 若存在多个候选根因，按证据强弱排序，不要同时修改多个不确定点
-- 代码改动前应能指出触发入口、影响路径和必要修改点
+- State what is proven and what is inferred.
+- Do not patch from filename or keyword guesses.
+- If the root cause is unclear, keep investigating before editing.
 
 ## Regression Protection
-- 已有测试框架时，确认根因后优先补最小回归测试
-- 没有测试框架时，给出复现路径、修复路径和手工回归路径
-- 不为覆盖率而补脆弱测试，测试应断言可观察行为而不是实现细节
+- Prefer a failing-before / passing-after test when practical.
+- If tests are not available, provide a targeted manual validation path.
 
 # Memory Usage
-- 项目专属问题 -> memory/projects/{project}.md
-- 通用问题模式 -> memory/global/reusable-patterns.md
+Record a memory item when the bug has a clear root cause, repeated symptom, project-specific pitfall, or future diagnostic value.

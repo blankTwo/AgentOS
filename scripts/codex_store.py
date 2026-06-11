@@ -38,9 +38,37 @@ def column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
     return any(row["name"] == column for row in rows)
 
 
+def add_column_if_missing(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
+    if not column_exists(conn, table, column):
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+
 def migrate_schema(conn: sqlite3.Connection) -> None:
     if not column_exists(conn, "memory_items", "import_key"):
         conn.execute("ALTER TABLE memory_items ADD COLUMN import_key TEXT")
+    add_column_if_missing(conn, "agent_goals", "source_request", "TEXT")
+    add_column_if_missing(conn, "agent_goals", "final_result", "TEXT")
+    add_column_if_missing(conn, "agent_tasks", "depends_on", "TEXT")
+    add_column_if_missing(conn, "agent_tasks", "order_index", "INTEGER NOT NULL DEFAULT 0")
+    add_column_if_missing(conn, "agent_tasks", "completed_evidence", "TEXT")
+    add_column_if_missing(conn, "agent_observations", "observation_type", "TEXT NOT NULL DEFAULT 'manual'")
+    add_column_if_missing(conn, "capability_nodes", "confidence", "REAL NOT NULL DEFAULT 0.7")
+    add_column_if_missing(conn, "capability_nodes", "memory_evidence", "TEXT")
+    add_column_if_missing(conn, "capability_nodes", "code_evidence", "TEXT")
+    add_column_if_missing(conn, "capability_nodes", "test_evidence", "TEXT")
+    add_column_if_missing(conn, "policy_decisions", "severity", "TEXT NOT NULL DEFAULT 'normal'")
+    add_column_if_missing(conn, "policy_decisions", "blocking", "INTEGER NOT NULL DEFAULT 0")
+    add_column_if_missing(conn, "verification_runs", "exit_code", "INTEGER")
+    add_column_if_missing(conn, "verification_runs", "stdout_summary", "TEXT")
+    add_column_if_missing(conn, "verification_runs", "failure_type", "TEXT")
+    add_column_if_missing(conn, "verification_runs", "ran_at", "TEXT")
+    add_column_if_missing(conn, "recovery_points", "checkpoint_ref", "TEXT")
+    add_column_if_missing(conn, "recovery_points", "applied_at", "TEXT")
+    add_column_if_missing(conn, "recovery_points", "obsolete_reason", "TEXT")
+    add_column_if_missing(conn, "skill_recommendations", "goal_id", "TEXT")
+    add_column_if_missing(conn, "skill_recommendations", "run_id", "TEXT")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_skill_recommendations_goal ON skill_recommendations(goal_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_skill_recommendations_run ON skill_recommendations(run_id)")
     conn.execute(
         """
         CREATE UNIQUE INDEX IF NOT EXISTS idx_memory_items_import_key
@@ -51,7 +79,7 @@ def migrate_schema(conn: sqlite3.Connection) -> None:
     conn.execute(
         """
         INSERT INTO schema_meta(key, value)
-        VALUES ('schema_version', '3')
+        VALUES ('schema_version', '4')
         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')
         """
     )
@@ -72,7 +100,7 @@ def normalize_csv(values: list[str] | None) -> str | None:
 def normalize_project_slug(value: str) -> str:
     value = value.strip().lower()
     value = re.sub(r"[\s_]+", "-", value)
-    value = re.sub(r"[^a-z0-9.\-一-鿿]+", "-", value)
+    value = re.sub(r"[^a-z0-9.\-\u4e00-\u9fff]+", "-", value)
     value = value.strip(".-")
     return value or "unknown-project"
 
@@ -88,7 +116,7 @@ def row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
 def build_safe_fts_query(query: str) -> str:
     """Build a forgiving FTS5 query from real-world bug/feature text."""
 
-    tokens = re.findall(r"[\w.\-/:一-鿿]+", query, flags=re.UNICODE)
+    tokens = re.findall(r"[\w.\-/:\u4e00-\u9fff]+", query, flags=re.UNICODE)
     cleaned = [token.strip(".-/:_") for token in tokens]
     cleaned = [token for token in cleaned if token]
     if not cleaned:
@@ -134,15 +162,15 @@ def split_markdown_sections(text: str) -> list[dict[str, str]]:
 
 def infer_memory_type(title: str, body: str) -> str:
     haystack = f"{title}\n{body}".lower()
-    if any(token in haystack for token in ("pitfall", "bug", "root cause", "fix:", "踩坑", "问题", "修复")):
+    if any(token in haystack for token in ("pitfall", "bug", "root cause", "fix:")):
         return "lesson"
-    if any(token in haystack for token in ("decision", "rationale", "reason:", "决策", "决定", "原因")):
+    if any(token in haystack for token in ("decision", "rationale", "reason:")):
         return "decision"
-    if any(token in haystack for token in ("pattern", "trigger:", "scope:", "模式", "复用")):
+    if any(token in haystack for token in ("pattern", "trigger:", "scope:")):
         return "pattern"
-    if any(token in haystack for token in ("validation", "verified", "验证", "待验证")):
+    if any(token in haystack for token in ("validation", "verified", "pending validation")):
         return "validation"
-    if any(token in haystack for token in ("feature", "flow", "done:", "功能", "流程")):
+    if any(token in haystack for token in ("feature", "flow", "done:")):
         return "feature"
     return "note"
 

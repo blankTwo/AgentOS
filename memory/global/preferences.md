@@ -1,21 +1,15 @@
 # Global Preferences
 
 ## Stable Preferences
-- 优先 TypeScript
-- 优先完整解决核心问题，同时控制影响范围
-- 复杂任务先 plan
-- 优先按层拆分代码
-- 优先给出可执行修改方案
-- 优先保留现有项目结构，不轻易大改目录
-- 避免临时占位、半成品或只满足 MVP 的系统性调整
-- skill 按任务层组织，技术栈作为实现上下文
-- 完成前优先提供验证证据，而不是只描述已完成
+
+- Prefer complete, production-grade solutions over temporary MVP shortcuts.
+- Do not make code changes from guesses; inspect files, logs, tests, or other evidence first.
+- Keep project-specific business details inside project memory, not global memory.
+- Use concise, structured, conclusion-first reporting.
+- When committing, use the author `blankTwo <blankgrid.lsy@gmail.com>` if the user asks to commit and does not override it.
 
 ## Communication Preferences
-- 结论先行
-- 步骤清晰
-- 尽量少废话
-- 有代码时给完整可用内容
-- 排查类任务优先给结构化报告
-- 结构化报告优先包含：结论 / 证据 / 原因判断 / 建议或解决方案
-- 涉及架构或系统规则调整时，说明取舍、边界和剩余风险
+
+- The user prefers direct technical conclusions and clear recommendations.
+- For architecture or Agent OS changes, provide concrete tables and implementation-oriented analysis.
+- Avoid vague plans when the user has asked for implementation.

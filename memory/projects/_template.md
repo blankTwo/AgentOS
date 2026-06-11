@@ -1,47 +1,44 @@
 # Project Memory: {project}
 
 ## Summary
-- Slug:
-- Detection Source:
-- Confidence:
-- Description:
-- Primary Stack:
-- Secondary Stack:
-- Main Modules:
-- Constraints:
-- Main Patterns:
-- Known Pitfalls:
+
+- Project:
+- Stack:
+- Architecture:
+- Current focus:
+- Key constraints:
 
 ## Context
-- Description:
-- Stack:
-- Main Modules:
-- Constraints:
+
+- Product/domain:
+- Important directories:
+- Main entry points:
+- Environment notes:
 
 ## Current Status
-- Done:
-- In Progress:
-- Todo:
+
+- Active features:
+- Pending validation:
+- Known risks:
 
 ## Decisions
+
 - Date:
-- Context:
 - Decision:
-- Reason:
+- Rationale:
+- Files:
+- Validation:
 
 ## Pitfalls
-- Date:
+
 - Symptom:
-- Root Cause:
+- Root cause:
 - Fix:
-- Prevention:
+- Validation:
 
 ## Patterns
-- Name:
+
 - Trigger:
-- Count:
-- Validation:
-- Scope:
-- Candidate:
 - Pattern:
-- Note:
+- Scope:
+- Boundary:

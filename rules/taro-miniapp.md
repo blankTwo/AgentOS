@@ -1,15 +1,15 @@
-# Taro / Miniapp Rules
+# Taro / Mini Program Rules
 
 ## Structure
-- 页面逻辑与云函数调用分开
-- 数据流尽量单向
-- 下拉刷新、上拉加载、分页状态明确隔离
+- Separate page logic from cloud-function calls.
+- Prefer one-way data flow.
+- Keep pull-to-refresh, infinite scroll, and pagination state clearly separated.
 
 ## Cloud
-- 云函数输入输出结构明确
-- 数据库写入前先校验字段
-- 分页接口要明确 page / pageSize / cursor 策略
+- Define cloud-function input and output shapes clearly.
+- Validate fields before database writes.
+- Pagination APIs must clearly define page / pageSize / cursor strategy.
 
 ## UI Logic
-- 避免把大量状态直接塞进页面文件
-- 公共逻辑优先抽 hook / util / service
+- Avoid putting excessive state directly into page files.
+- Extract shared logic into hooks, utilities, or services first.

@@ -1,27 +1,27 @@
 # Coding Style Rules
 
 ## General
-- 优先使用 TypeScript
-- 优先显式类型
-- 禁止无必要的 any
-- 优先清晰命名，避免缩写
-- 函数尽量单一职责
-- 避免过深嵌套
-- 避免重复逻辑
+- Prefer TypeScript when the project uses it.
+- Prefer explicit types.
+- Avoid unnecessary `any`.
+- Prefer clear naming over abbreviations.
+- Keep functions single-purpose.
+- Avoid deep nesting.
+- Avoid duplicated logic.
 
 ## Architecture
-- UI、状态、数据请求尽量分层
-- API 调用统一封装
-- 常量、类型、工具函数按职责拆分
-- 不在 UI 组件中堆积复杂业务逻辑
+- Separate UI, state, and data-request concerns where possible.
+- Centralize API calls through request helpers.
+- Split constants, types, and utilities by responsibility.
+- Do not accumulate complex business logic inside UI components.
 
 ## Change Preference
-- 优先完整解决本次目标，同时控制影响范围
-- 优先局部完成闭环，避免把问题留成临时状态
-- 若问题来自结构设计，再考虑重构
-- 重构不得隐式改变对外行为
+- Solve the requested goal completely while keeping impact bounded.
+- Prefer a local closed loop over leaving temporary state.
+- Refactor when the root problem is structural.
+- Refactoring must not silently change external behavior.
 
 ## Readability
-- 可读性优先于炫技
-- 尽量减少神秘行为
-- 注释解释“为什么”，少解释“这行代码做了什么”
+- Readability beats cleverness.
+- Reduce hidden behavior.
+- Comments should explain why, not restate what a line does.

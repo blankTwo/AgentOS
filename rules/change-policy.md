@@ -1,59 +1,57 @@
 # Change Policy
 
-## Allowed High Frequency Updates
-- memory/global/*
-- memory/projects/*
+## Allowed High-Frequency Updates
+- Project memory
+- SQLite memory records
+- Validation notes
+- Small documentation clarifications
 
 ## Allowed With Reason
-- rules/*
-- skills/*
-
-## Forbidden Automatic Updates
-- AGENTS.md
+- Skills, when reuse value and trigger boundaries are clear.
+- Rules, when the behavior is stable and broadly applicable.
+- AGENTS.md, only when the user explicitly asks for Agent OS architecture, gate definitions, control-flow, or routing changes.
 
 ### AGENTS.md Exception
-当用户明确要求以下任务时，允许修改 AGENTS.md：
-- Agent OS 架构调整
-- Gate 定义或执行流程调整
-- 总控规则修订
-- Project / Stack / Task Layer routing 调整
+When the user explicitly requests these changes, AGENTS.md may be modified:
+- Agent OS architecture changes.
+- Gate definition or execution-flow changes.
+- Control-rule revisions.
+- Project / Stack / Task Layer routing changes.
 
-修改 AGENTS.md 前必须说明：
-- 修改原因
-- 影响范围
-- 验证方式
+Before changing AGENTS.md, state:
+- reason for change
+- impact scope
+- validation method
 
-修改 AGENTS.md 后必须：
-- 触发 Review Gate，或执行等价一致性检查
-- 检查 README / rules / skills 是否出现职责重复或旧规则残留
-- 说明是否需要 memory / evolution 记录
+After changing AGENTS.md:
+- run Review Gate or an equivalent consistency check
+- check README / rules / skills for duplicated responsibility or stale rules
+- state whether memory or evolution records are needed
 
 ## Promotion Standard
-只有当某经验满足以下条件，才允许升级：
-- 已验证
-- 可复用
-- 有明确边界
-- 非一次性技巧
-- 非强业务耦合
+Experience may be promoted only when it is:
+- verified
+- reusable
+- bounded
+- not one-off
+- not strongly business-coupled
 
 ## Skill / Rule Maintenance
-- 修改 skill 前必须说明复用价值和触发场景
-- 修改 rule 前必须说明为什么它已经足够稳定
-- 不把单个案例、临时 workaround 或未验证偏好写进 skill / rule
-- 优先增强已有 task-layer skill，不因为出现新技术栈就新增 stack-specific skill
-- 修改后应检查描述是否仍准确，避免 skill 触发范围过宽
-- 新增 stack-specific skill 必须有跨项目证据、清晰边界，并证明不能由 task-layer skill + project pattern 解决
+- Before changing a skill, state its reuse value and trigger scenario.
+- Before changing a rule, state why it is stable enough.
+- Do not write one-off cases, temporary workarounds, or unverified preferences into skills or rules.
+- Prefer improving existing task-layer skills instead of creating stack-specific skills.
+- After modification, check that descriptions remain accurate and triggers are not too broad.
+- New stack-specific skills require cross-project evidence, clear boundaries, and proof that task-layer skill plus project pattern is insufficient.
 
 ## Review Gate
-修改以下内容时，应执行 `rules/review-gate.md`：
-- AGENTS.md
-- rules/*
-- skills/*
-- 大范围架构或跨任务层变更
-- 权限、数据、安全、支付、发布等高风险修改
+Run `rules/review-gate.md` for:
+- AGENTS.md / rules / skills changes
+- large architecture or cross-layer changes
+- permission, data, security, payment, or release risk
 
 ## Anti-Drift
-- 不得为了“更通用”而破坏已有清晰流程
-- 不得为了“更智能”而让规则不可执行
-- 规则必须简洁、明确、可操作
-- 新规则必须能回答“何时触发、如何执行、如何验证”
+- Do not break clear workflows for the sake of being "more generic".
+- Do not make rules less executable for the sake of being "more intelligent".
+- Rules must be concise, explicit, and actionable.
+- A new rule must answer: when it triggers, how to execute it, and how to validate it.
