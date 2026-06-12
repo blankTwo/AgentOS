@@ -303,6 +303,8 @@ def cmd_candidate_upsert(args: argparse.Namespace) -> None:
                 """
                 UPDATE skill_candidates
                 SET
+                    goal_id = COALESCE(?, goal_id),
+                    run_id = COALESCE(?, run_id),
                     trigger = COALESCE(?, trigger),
                     evidence = COALESCE(?, evidence),
                     validation = COALESCE(?, validation),
@@ -317,6 +319,8 @@ def cmd_candidate_upsert(args: argparse.Namespace) -> None:
                 WHERE id = ?
                 """,
                 (
+                    args.goal_id,
+                    args.run_id,
                     args.trigger,
                     args.evidence,
                     args.validation,
@@ -336,6 +340,8 @@ def cmd_candidate_upsert(args: argparse.Namespace) -> None:
                 INSERT INTO skill_candidates(
                     name,
                     project,
+                    goal_id,
+                    run_id,
                     trigger,
                     evidence,
                     validation,
@@ -347,11 +353,13 @@ def cmd_candidate_upsert(args: argparse.Namespace) -> None:
                     count,
                     confidence
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     args.name,
                     args.project,
+                    args.goal_id,
+                    args.run_id,
                     args.trigger,
                     args.evidence,
                     args.validation,
@@ -715,6 +723,8 @@ def build_parser() -> argparse.ArgumentParser:
     add_common_args(candidate_parser)
     candidate_parser.add_argument("--name", required=True)
     candidate_parser.add_argument("--project", default="*")
+    candidate_parser.add_argument("--goal-id")
+    candidate_parser.add_argument("--run-id")
     candidate_parser.add_argument("--trigger", required=True)
     candidate_parser.add_argument("--evidence", required=True)
     candidate_parser.add_argument("--validation")

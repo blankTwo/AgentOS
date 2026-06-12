@@ -59,7 +59,7 @@ Runtime controllers convert gate decisions into explicit command outputs:
 - `runtime-create-checkpoint`: records an available recovery checkpoint.
 - `runtime-mark-recovery`: marks a recovery point as used, available, planned, or obsolete.
 - `runtime-final-check`: checks final gate completeness before handoff and should be scoped with `--goal-id` or `--run-id` for multi-task projects.
-- `runtime-review-improvements`: reviews candidate skill/rule evidence and returns promotion readiness.
+- `runtime-review-improvements`: reviews candidate skill/rule evidence and returns promotion readiness; scope with `--goal-id` or `--run-id` during final task review.
 - `runtime-report`: generates a scoped audit report for a run or goal.
 
 Controllers may run in dry output mode or with `--record` to write runtime records. Recorded controller output is evidence, not a substitute for code inspection or real validation.
@@ -164,7 +164,7 @@ python scripts/agent-runtime.py runtime-create-checkpoint --project my-project -
 python scripts/agent-runtime.py runtime-mark-recovery --id 1 --status obsolete --reason "validation passed"
 python scripts/agent-runtime.py runtime-final-check --project my-project --run-id run-1 --require-recovery --require-skills
 python scripts/agent-runtime.py runtime-report --project my-project --run-id run-1
-python scripts/agent-runtime.py runtime-review-improvements --project "*" --record
+python scripts/agent-runtime.py runtime-review-improvements --project my-project --goal-id goal-1 --run-id run-1 --record
 ```
 
 Use `tools/agent-runtime.md` for command examples.

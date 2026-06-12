@@ -322,6 +322,16 @@ python scripts/agent-runtime.py runtime-review-improvements \
   --record
 ```
 
+Use `--goal-id` or `--run-id` to review only global candidates plus candidates associated with the current runtime goal/run:
+
+```bash
+python scripts/agent-runtime.py runtime-review-improvements \
+  --project my-project \
+  --goal-id goal-phone-login \
+  --run-id run-phone-login \
+  --record
+```
+
 This reviews candidate skill/rule evidence and writes improvement review records. It never promotes a candidate by itself.
 
 ---

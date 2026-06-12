@@ -178,6 +178,8 @@ CREATE TABLE IF NOT EXISTS skill_candidates (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     project TEXT NOT NULL DEFAULT '*',
+    goal_id TEXT,
+    run_id TEXT,
     trigger TEXT NOT NULL,
     evidence TEXT NOT NULL,
     validation TEXT,
@@ -498,6 +500,8 @@ CREATE INDEX IF NOT EXISTS idx_recovery_points_status ON recovery_points(status)
 CREATE TABLE IF NOT EXISTS improvement_reviews (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     project TEXT NOT NULL DEFAULT '*',
+    goal_id TEXT,
+    run_id TEXT,
     candidate_name TEXT NOT NULL,
     source_type TEXT NOT NULL CHECK (source_type IN (
         'preference',

@@ -1,6 +1,6 @@
 ---
 name: ui-refine
-description: Use for UI Layer refinement of existing pages: align visual style, reduce native assembly feel, replace inconsistent Tailwind usage, reuse component libraries and existing components, and improve UI consistency.
+description: "Use for UI Layer refinement of existing pages: align visual style, reduce native assembly feel, replace inconsistent Tailwind usage, reuse component libraries and existing components, and improve UI consistency."
 ---
 
 # Trigger Keywords

@@ -370,6 +370,97 @@ class AgentRuntimeCliTests(unittest.TestCase):
             self.assertTrue(result["ok"])
             self.assertEqual(result["reviews"][0]["recommendation"], "ready-for-human-review")
 
+    def test_improvement_review_can_be_scoped_by_goal(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = str(Path(tmp) / "runtime.db")
+            self.run_memory_cli(
+                "candidate-upsert",
+                "--db",
+                db,
+                "--name",
+                "global-runtime-pattern",
+                "--project",
+                "codex-agent-os",
+                "--trigger",
+                "Reusable runtime lesson.",
+                "--evidence",
+                "Global evidence.",
+                "--validation",
+                "Validated globally.",
+                "--scope",
+                "All runtime tasks.",
+                "--boundary",
+                "Not project-specific.",
+                "--increment",
+                "2",
+            )
+            self.run_memory_cli(
+                "candidate-upsert",
+                "--db",
+                db,
+                "--name",
+                "goal-runtime-pattern",
+                "--project",
+                "codex-agent-os",
+                "--goal-id",
+                "goal-1",
+                "--run-id",
+                "run-1",
+                "--trigger",
+                "Goal-scoped runtime lesson.",
+                "--evidence",
+                "Goal evidence.",
+                "--validation",
+                "Validated in goal.",
+                "--scope",
+                "This goal.",
+                "--boundary",
+                "Only this goal chain.",
+                "--increment",
+                "2",
+            )
+            self.run_memory_cli(
+                "candidate-upsert",
+                "--db",
+                db,
+                "--name",
+                "other-goal-pattern",
+                "--project",
+                "codex-agent-os",
+                "--goal-id",
+                "goal-2",
+                "--trigger",
+                "Other goal lesson.",
+                "--evidence",
+                "Other evidence.",
+                "--validation",
+                "Other validation.",
+                "--scope",
+                "Other goal.",
+                "--boundary",
+                "Not goal-1.",
+                "--increment",
+                "2",
+            )
+            result = self.run_cli(
+                "runtime-review-improvements",
+                "--db",
+                db,
+                "--project",
+                "codex-agent-os",
+                "--goal-id",
+                "goal-1",
+                "--run-id",
+                "run-1",
+                "--record",
+            )
+            self.assertTrue(result["ok"])
+            names = {item["name"] for item in result["reviews"]}
+            self.assertIn("global-runtime-pattern", names)
+            self.assertIn("goal-runtime-pattern", names)
+            self.assertNotIn("other-goal-pattern", names)
+            self.assertEqual(result["goal_id"], "goal-1")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -67,8 +67,16 @@ def migrate_schema(conn: sqlite3.Connection) -> None:
     add_column_if_missing(conn, "recovery_points", "obsolete_reason", "TEXT")
     add_column_if_missing(conn, "skill_recommendations", "goal_id", "TEXT")
     add_column_if_missing(conn, "skill_recommendations", "run_id", "TEXT")
+    add_column_if_missing(conn, "skill_candidates", "goal_id", "TEXT")
+    add_column_if_missing(conn, "skill_candidates", "run_id", "TEXT")
+    add_column_if_missing(conn, "improvement_reviews", "goal_id", "TEXT")
+    add_column_if_missing(conn, "improvement_reviews", "run_id", "TEXT")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_skill_recommendations_goal ON skill_recommendations(goal_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_skill_recommendations_run ON skill_recommendations(run_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_skill_candidates_goal ON skill_candidates(goal_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_skill_candidates_run ON skill_candidates(run_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_improvement_reviews_goal ON improvement_reviews(goal_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_improvement_reviews_run ON improvement_reviews(run_id)")
     conn.execute(
         """
         CREATE UNIQUE INDEX IF NOT EXISTS idx_memory_items_import_key
@@ -79,7 +87,7 @@ def migrate_schema(conn: sqlite3.Connection) -> None:
     conn.execute(
         """
         INSERT INTO schema_meta(key, value)
-        VALUES ('schema_version', '4')
+        VALUES ('schema_version', '5')
         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')
         """
     )

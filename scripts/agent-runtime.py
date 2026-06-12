@@ -1692,15 +1692,17 @@ def cmd_runtime_review_improvements(args: argparse.Namespace) -> None:
         ensure_initialized(conn, args.schema)
         candidates = conn.execute(
             """
-            SELECT name, project, trigger, evidence, validation, scope, boundary,
+            SELECT name, project, goal_id, run_id, trigger, evidence, validation, scope, boundary,
                    status, count, confidence
             FROM skill_candidates
             WHERE (? IS NULL OR project = ? OR project = '*')
+              AND (? IS NULL OR goal_id = ? OR goal_id IS NULL)
+              AND (? IS NULL OR run_id = ? OR run_id IS NULL)
               AND status IN ('candidate', 'reviewing', 'approved')
             ORDER BY count DESC, updated_at DESC
             LIMIT ?
             """,
-            (args.project, args.project, args.limit),
+            (args.project, args.project, args.goal_id, args.goal_id, args.run_id, args.run_id, args.limit),
         ).fetchall()
         reviews = []
         for row in candidates:
@@ -1718,11 +1720,13 @@ def cmd_runtime_review_improvements(args: argparse.Namespace) -> None:
                 conn.execute(
                     """
                     INSERT INTO improvement_reviews(
-                        project, candidate_name, source_type, trigger, evidence,
+                        project, goal_id, run_id, candidate_name, source_type, trigger, evidence,
                         scope, boundary, status, review_result
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(project, candidate_name, source_type) DO UPDATE SET
+                        goal_id = excluded.goal_id,
+                        run_id = excluded.run_id,
                         trigger = excluded.trigger,
                         evidence = excluded.evidence,
                         scope = excluded.scope,
@@ -1733,6 +1737,8 @@ def cmd_runtime_review_improvements(args: argparse.Namespace) -> None:
                     """,
                     (
                         row["project"],
+                        args.goal_id or row["goal_id"],
+                        args.run_id or row["run_id"],
                         row["name"],
                         "skill",
                         row["trigger"],
@@ -1745,7 +1751,7 @@ def cmd_runtime_review_improvements(args: argparse.Namespace) -> None:
                 )
         if args.record:
             conn.commit()
-    print_json({"ok": True, "project": args.project, "reviews": reviews})
+    print_json({"ok": True, "project": args.project, "goal_id": args.goal_id, "run_id": args.run_id, "reviews": reviews})
 
 
 def cmd_runtime_report(args: argparse.Namespace) -> None:
@@ -2290,11 +2296,13 @@ def cmd_runtime_record(args: argparse.Namespace) -> None:
             conn.execute(
                 """
                 INSERT INTO improvement_reviews(
-                    project, candidate_name, source_type, trigger, evidence,
+                    project, goal_id, run_id, candidate_name, source_type, trigger, evidence,
                     scope, boundary, status, review_result
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(project, candidate_name, source_type) DO UPDATE SET
+                    goal_id = excluded.goal_id,
+                    run_id = excluded.run_id,
                     trigger = excluded.trigger,
                     evidence = excluded.evidence,
                     scope = excluded.scope,
@@ -2305,6 +2313,8 @@ def cmd_runtime_record(args: argparse.Namespace) -> None:
                 """,
                 (
                     args.project,
+                    args.goal_id,
+                    args.run_id,
                     require_arg(args, "candidate_name"),
                     require_arg(args, "source_type"),
                     require_arg(args, "trigger"),
@@ -2563,6 +2573,8 @@ def build_parser() -> argparse.ArgumentParser:
     improvement_parser = subparsers.add_parser("runtime-review-improvements", help="Review candidate skills/rules for promotion readiness")
     add_common_args(improvement_parser)
     improvement_parser.add_argument("--project")
+    improvement_parser.add_argument("--goal-id")
+    improvement_parser.add_argument("--run-id")
     improvement_parser.add_argument("--limit", type=int, default=20)
     improvement_parser.add_argument("--min-count", type=int, default=2)
     improvement_parser.add_argument("--record", action="store_true")
@@ -2581,6 +2593,7 @@ def build_parser() -> argparse.ArgumentParser:
     runtime_record_parser.add_argument("--project", required=True)
     runtime_record_parser.add_argument("--id")
     runtime_record_parser.add_argument("--goal-id")
+    runtime_record_parser.add_argument("--run-id")
     runtime_record_parser.add_argument("--task-id")
     runtime_record_parser.add_argument("--objective")
     runtime_record_parser.add_argument("--title")

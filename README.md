@@ -295,7 +295,7 @@ python scripts/agent-runtime.py runtime-create-checkpoint --project my-project -
 
 python scripts/agent-runtime.py runtime-final-check --project my-project --run-id run-1 --require-recovery --require-skills
 
-python scripts/agent-runtime.py runtime-review-improvements --project "*" --record
+python scripts/agent-runtime.py runtime-review-improvements --project my-project --goal-id goal-1 --run-id run-1 --record
 
 python scripts/agent-runtime.py runtime-report --project my-project --run-id run-1
 
