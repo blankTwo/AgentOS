@@ -25,6 +25,21 @@ The goals are:
 
 ---
 
+## Agent Display Name
+Default display name: `Agent OS`.
+
+If the project root `AGENTS.md` defines `Agent display name: <name>`, use that name instead.
+
+Use the display name as a lightweight prefix for user-visible execution intent, status updates, and final conclusions when it helps the user confirm that Codex Agent OS is active.
+
+Examples:
+- `Agent OS: I will first compare the PC and app request paths before changing code.`
+- `Agent OS: The current open-root-trpc workspace has no changes. Next, run an interface smoke test.`
+
+Do not prefix every bullet, table row, code block, command, or file path. Use it once at the start of a status paragraph or conclusion.
+
+---
+
 ## Project Detection
 At task start, detect the current project.
 

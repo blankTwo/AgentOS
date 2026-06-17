@@ -169,8 +169,36 @@ your-project/
 
 1. 在目标项目根目录创建 `.codex/`。
 2. 将本仓库的全部内容放入目标项目 `.codex/`，至少包含 `AGENTS.md`、`rules/`、`skills/`、`memory/`、`scripts/` 和 `tools/`。
-3. 在 Codex 或兼容的 AI Coding Agent 中打开目标项目。
-4. Agent 会通过 `.codex/AGENTS.md` 识别项目、技术栈、任务层，并按需加载 rules / skills / memory；SQLite memory 工具由 `.codex/scripts/memory-tools.py` 提供，Agent Runtime 控制器由 `.codex/scripts/agent-runtime.py` 提供。
+3. 在目标项目根目录创建轻量入口 `AGENTS.md`。
+4. 在 Codex 或兼容的 AI Coding Agent 中打开目标项目。
+5. Agent 会通过根目录 `AGENTS.md` 进入 `.codex/AGENTS.md`，再识别项目、技术栈、任务层，并按需加载 context / workflows / rules / skills / memory；SQLite memory 工具由 `.codex/scripts/memory-tools.py` 提供，Agent Runtime 控制器由 `.codex/scripts/agent-runtime.py` 提供。
+
+根目录 `AGENTS.md` 推荐模板：
+
+```md
+# Project Agent Entry
+
+This project uses Codex Agent OS from `.codex/`.
+
+## Agent Display
+
+Agent display name: Agent OS
+
+Before starting any task:
+1. Read `.codex/AGENTS.md`.
+2. Follow `.codex/context/`, `.codex/workflows/`, `.codex/rules/`, `.codex/skills/`, `.codex/tools/`, and `.codex/memory/`.
+3. Treat this repository root as the user project.
+4. Keep project-specific decisions in `.codex/memory/projects/{project}.md`.
+5. Do not modify `.codex/AGENTS.md` unless the user explicitly asks to upgrade Codex Agent OS itself.
+
+Project-specific rules can be added below this line.
+```
+
+如果希望用户可见回复前缀使用其他名字，可以修改：
+
+```md
+Agent display name: 小白
+```
 
 ### 方式二：直接把仓库克隆为 `.codex`
 
@@ -184,8 +212,11 @@ git clone <this-repo-url> .codex
 
 ```text
 your-project/
+├── AGENTS.md
 ├── .codex/
 │   ├── AGENTS.md
+│   ├── context/
+│   ├── workflows/
 │   ├── rules/
 │   ├── skills/
 │   ├── memory/
@@ -519,7 +550,7 @@ project memory -> skill -> rule
 
 ### 我需要给每个项目单独建 AGENTS.md 吗？
 
-默认不需要。Codex Agent OS 的目标就是让多个项目复用同一套入口和规则。
+需要一个很薄的项目根入口 `AGENTS.md`。它不复制 Agent OS 核心规则，只负责告诉 Codex 当前项目使用 `.codex/` 下的 Codex Agent OS，并允许项目补充少量专属规则。
 
 ### 项目差异写在哪里？
 
