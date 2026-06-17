@@ -16,6 +16,7 @@ The goals are:
 - Prefer verifiable solutions.
 - Reuse existing rules and skills before inventing new ones.
 - Plan before executing complex work.
+- Provide user-visible execution intent before implementation for every task. Simple tasks may use one concise sentence; uncertain or risky tasks need a visible plan.
 - Do not modify code from guesses.
 - For L2+ work, prefer Agent Runtime records for goals, tasks, capability state, policy, verification, and recovery.
 - Record durable lessons, but keep memory isolated.
@@ -137,9 +138,17 @@ For multi-layer tasks:
 Every task must pass these gates. A gate is a required decision point; a skill is an execution tool.
 
 ### Context Gate
-- Detect Project
-- Detect Stack
-- Detect Task Layer
+- Detect Project Context
+- Detect Stack Context
+- Detect Task Context
+- Detect Business Context
+- Detect Capability Context
+- Detect Platform Context
+- Detect Contract Context
+- Detect Language Context
+- Detect Evidence Context
+- Detect Risk Context
+- Select Workflow Context
 - Read Base Rules
 - Load Memory Summary
 
@@ -147,9 +156,54 @@ Output expectations:
 - Current project identity.
 - Current stack and impacted stacks.
 - Primary and secondary task layers.
+- Business flow or explicit "no business flow affected".
+- Capability state when the request concerns behavior or capability.
+- Platform, contract, evidence, and risk summary when relevant.
+- Language choice for user project artifacts when writing docs, copy, comments, or memory.
+- Selected workflow.
 - Loaded rules / memory summary.
 
 Simple tasks may complete Context Gate briefly. Complex, cross-project, cross-layer, or project-constrained tasks must read memory summary before selecting skills.
+
+Context details are defined in `context/`.
+
+### Workflow Gate
+After Context Gate, select the workflow that controls user-visible output, evidence depth, execution order, validation, and memory behavior.
+
+Default workflows:
+- Simple Change -> `workflows/simple-change.md`
+- Bug Diagnosis -> `workflows/bug-diagnosis.md`
+- Cross-Platform Issue -> `workflows/cross-platform-issue.md`
+- Feature Implementation -> `workflows/feature-implementation.md`
+- API Contract Change -> `workflows/api-contract-change.md`
+- Agent OS Evolution -> `workflows/agent-os-evolution.md`
+
+Selection rules are in `workflows/workflow-selection.md`.
+
+When workflows overlap, choose the workflow with the highest risk and strongest evidence requirement.
+
+Every workflow must begin with user-visible intent:
+- simple work: one concise execution-intent sentence
+- medium-risk work: short plan with validation method
+- high-risk or uncertain work: structured plan with goal, scope, steps, risks, validation, and recovery when applicable
+- diagnostic work: diagnostic plan before behavior changes
+
+Runtime records, task queues, memory hits, or internal notes never replace user-visible intent or plan.
+
+The agent must not say "plan is ready", "plan is set", "policy is decided", or equivalent unless the concrete intent or plan has already been shown.
+
+### Language Boundary
+Agent OS model-facing files should use English by default:
+- `AGENTS.md`
+- `context/`
+- `workflows/`
+- `rules/`
+- `skills/`
+- `tools/`
+
+User project artifacts must follow the existing project language and the user's language unless the user explicitly asks otherwise. This includes project docs, headings, decision records, README sections, inline comments, UI copy, error messages, commits, and project memory.
+
+Do not impose English headings or English business prose on a Chinese business project only because Agent OS files are English.
 
 ### Evidence Gate
 Collect evidence before conclusions for:
@@ -202,7 +256,7 @@ Quality assurance:
 Risk Gate output must feed Planning Gate.
 
 ### Planning Gate
-Before implementation, decide whether to execute directly or output a plan based on capability state and task scale.
+Before implementation, decide the depth of user-visible intent or plan based on context, workflow, capability state, task scale, uncertainty, and business risk.
 
 Task scale:
 - L1 local low-risk change: single file or small local change; no API, data, permission, state-flow, or cross-module behavior change.
@@ -211,17 +265,19 @@ Task scale:
 - L4 architecture/data/permission/release change: architecture, data model or migration, auth/permissions, payment, security, production config, build/release flow, or Agent OS core rules.
 
 Execution mode:
-- L1: direct execution is allowed, with validation stated.
-- L2: output a short plan first.
-- L3: output a full plan first.
-- L4: output a full plan and evaluate TDD, rollback, Review Gate, worktree, and performance check.
+- L1: direct execution is allowed only after one concise user-visible execution-intent sentence.
+- L2: output a short user-visible plan first.
+- L3: output a full user-visible plan first.
+- L4: output a full user-visible plan and evaluate TDD, rollback, Review Gate, worktree, and performance check.
 
-A plan must include:
+A structured plan must include:
 - Goal
 - Impact scope
 - Change steps
 - Risks
 - Validation method
+
+For high-risk work, also include recovery/rollback and Review Gate decision when applicable.
 
 If scale is unclear, treat it as the higher level. Do not default to L1 because the request is short.
 
@@ -343,17 +399,19 @@ The main agent remains accountable for Memory Gate completion.
 ## Execution Flow
 Every task follows:
 1. Context Gate
-2. Evidence Gate
-3. Capability Discovery Gate when capability work is triggered
-4. Risk Gate
-5. Planning Gate
-6. Agent Runtime Gate when triggered
-7. Select matching skills
-8. Load detailed memory
-9. Implement changes
-10. Validation Gate
-11. Memory Gate
-12. Evaluate evolution candidates
+2. Workflow Gate
+3. User-visible intent or plan
+4. Evidence Gate
+5. Capability Discovery Gate when capability work is triggered
+6. Risk Gate
+7. Planning Gate
+8. Agent Runtime Gate when triggered
+9. Select matching skills
+10. Load detailed memory
+11. Implement changes
+12. Validation Gate
+13. Memory Gate
+14. Evaluate evolution candidates
 
 Memory Summary is for fast project context. Detailed Memory is for implementation-relevant decisions, patterns, and previous fixes. Skills are selected after gates, not before gates.
 
@@ -381,16 +439,18 @@ New pages must:
 ## Rules Loading Order
 Interpret constraints in this order:
 1. This `AGENTS.md`
-2. `rules/coding-style.md`
-3. `rules/testing.md`
-4. `rules/change-policy.md`
-5. `rules/review-gate.md` when Review Gate triggers
-6. `rules/memory-enhanced.md` when long-term memory retrieval or recording is needed
-7. `rules/agent-runtime.md` when L2+, long-running, capability-chain, or runtime-record work triggers
-8. Stack-specific rules
-9. Matching skills
-10. `memory/global/preferences.md`
-11. `memory/projects/{project}.md`
+2. `context/` when Context Gate needs task situation classification
+3. `workflows/` when Workflow Gate selects execution path
+4. `rules/coding-style.md`
+5. `rules/testing.md`
+6. `rules/change-policy.md`
+7. `rules/review-gate.md` when Review Gate triggers
+8. `rules/memory-enhanced.md` when long-term memory retrieval or recording is needed
+9. `rules/agent-runtime.md` when L2+, long-running, capability-chain, or runtime-record work triggers
+10. Stack-specific rules
+11. Matching skills
+12. `memory/global/preferences.md`
+13. `memory/projects/{project}.md`
 
 Higher items take precedence when conflicts exist.
 
@@ -587,6 +647,8 @@ Record evidence:
 ## Safety Policy
 - Do not automatically modify AGENTS.md.
 - Exception: when the user explicitly asks for Agent OS architecture, gate definition, control-flow, or AGENTS rule changes.
+- Do not automatically modify `context/` or `workflows/`.
+- Exception: when the user explicitly asks for Agent OS context model, workflow routing, gate definition, control-flow, or operating behavior changes.
 - Before changing AGENTS.md, state reason, impact, and validation method.
 - After changing AGENTS.md, trigger Review Gate or an equivalent consistency check.
 - Memory updates are allowed.
@@ -622,7 +684,9 @@ Every code change should be:
 
 ## Default Completion Checklist
 At task end, check:
-- Context Gate: project, stack, task layer, memory summary
+- Context Gate: project, stack, task, business, capability, platform, contract, evidence, risk, workflow
+- Workflow Gate: selected workflow and required user-visible intent/plan
+- User-visible output: execution intent, diagnostic plan, or structured plan was shown before implementation
 - Evidence Gate: evidence supports conclusions and fixes
 - Risk Gate: plan / worktree / TDD / review / rollback / performance
 - Agent Runtime Gate: L2+ runtime records, capability/recovery when required

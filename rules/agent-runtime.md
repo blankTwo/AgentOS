@@ -5,6 +5,8 @@ Agent Runtime gives Codex Agent OS a structured operating layer for long-running
 
 It does not create an always-on background agent. Runtime actions are explicit, reviewable commands run by the agent during gates and task execution.
 
+Runtime records never replace user-visible workflow output. If the selected workflow requires execution intent, a diagnostic plan, a structured plan, recovery strategy, or review decision, the agent must show it to the user before implementation.
+
 ---
 
 ## Runtime Capabilities
@@ -62,7 +64,9 @@ Runtime controllers convert gate decisions into explicit command outputs:
 - `runtime-review-improvements`: reviews candidate skill/rule evidence and returns promotion readiness; scope with `--goal-id` or `--run-id` during final task review.
 - `runtime-report`: generates a scoped audit report for a run or goal.
 
-Controllers may run in dry output mode or with `--record` to write runtime records. Recorded controller output is evidence, not a substitute for code inspection or real validation.
+Controllers may run in dry output mode or with `--record` to write runtime records. Recorded controller output is evidence, not a substitute for code inspection, real validation, or user-visible workflow output.
+
+`runtime-run`, `runtime-plan-tasks`, and policy records can prepare the operating loop, but the agent still must summarize the applicable workflow intent or plan in the conversation before editing files.
 
 ---
 
@@ -100,6 +104,8 @@ Policy decisions should be recorded when they affect execution mode or risk cont
 - `execution-mode`
 
 Every policy decision needs rationale and evidence. A policy record does not replace the actual plan or validation summary.
+
+When a policy decision affects execution mode, TDD, review, rollback, worktree, or performance checks, the user-visible workflow output must include the relevant decision before implementation.
 
 ---
 

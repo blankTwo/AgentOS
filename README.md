@@ -31,6 +31,8 @@ Codex Agent OS 的目标是把这些问题收束到一套稳定机制里：
 | 模块 | 作用 |
 | --- | --- |
 | `AGENTS.md` | 总控入口，定义项目识别、任务路由、gate 流程和加载顺序 |
+| `context/` | 模型侧上下文层，判断业务影响、能力状态、平台差异、契约风险和证据是否充分 |
+| `workflows/` | 模型侧工作流层，定义不同任务类型的执行顺序和用户可见输出 |
 | `rules/` | 稳定规则，例如编码风格、测试策略、变更策略、UI 一致性 |
 | `skills/` | 可复用执行流程，例如 bugfix、api-change、feature-ui、refactor |
 | `memory/global/` | 跨项目通用偏好、复用模式和演化记录 |
@@ -137,6 +139,25 @@ your-project/
 ```text
 .codex/
 ├── AGENTS.md
+├── context/
+│   ├── README.md
+│   ├── business-context.md
+│   ├── capability-context.md
+│   ├── platform-context.md
+│   ├── contract-context.md
+│   ├── language-context.md
+│   ├── evidence-context.md
+│   ├── risk-context.md
+│   └── workflow-context.md
+├── workflows/
+│   ├── README.md
+│   ├── workflow-selection.md
+│   ├── simple-change.md
+│   ├── bug-diagnosis.md
+│   ├── cross-platform-issue.md
+│   ├── feature-implementation.md
+│   ├── api-contract-change.md
+│   └── agent-os-evolution.md
 ├── rules/
 ├── skills/
 ├── memory/
@@ -201,16 +222,18 @@ your-project/
 
 系统不鼓励“看到任务就直接调用某个 skill”。每次任务先经过 Mandatory Gates：
 
-- `Context Gate`：识别当前项目、技术栈、任务层和项目记忆
+- `Context Gate`：识别项目、技术栈、业务影响、能力状态、平台差异、契约风险、语言边界和证据状态
+- `Workflow Gate`：选择 Simple Change、Bug Diagnosis、Cross-Platform Issue、Feature Implementation、API Contract Change 或 Agent OS Evolution
+- `User-visible Intent / Plan`：执行前先让用户看到执行意图；简单任务一句话即可，复杂/高风险任务必须展示结构化计划
 - `Evidence Gate`：涉及 bug、架构、数据、权限、性能等判断时必须先有证据
 - `Capability Discovery Gate`：对实现、新增、接入、支持类需求，先判断能力链路是完整存在、部分存在、断链存在还是不存在
 - `Risk Gate`：判断 TDD、worktree、rollback、review、performance check 等风险策略
-- `Planning Gate`：按 L1-L4 任务规模决定直接执行还是先输出 plan
+- `Planning Gate`：按上下文、workflow、业务风险和不确定性决定 plan 深度，而不是只按 L1-L4
 - `Agent Runtime Gate`：L2 及以上、长任务或能力链路任务记录目标、任务、策略、验证和恢复状态
 - `Validation Gate`：完成前说明验证方式、验证结果、失败处理和剩余风险
 - `Memory Gate`：判断是否写入 project memory，是否只是 candidate，是否不应沉淀
 
-简单任务可以简短完成这些判断；复杂任务必须完整经过 gate。
+简单任务可以简短完成这些判断，但仍需要一句用户可见执行意图；复杂或不确定任务必须完整经过 gate 并展示计划。
 
 性能不单独作为独立 gate，而是在 `Risk Gate` 和 `Validation Gate` 中作为专项检查处理。
 
@@ -219,6 +242,10 @@ your-project/
 Codex Agent OS Runtime 是显式运行态，用 SQLite 记录任务推进过程中的关键状态，并提供控制器来识别上下文、扫描能力链路、评估策略、拆分任务、推荐 skill、选择下一步、规划并执行验证、规划恢复和审查演化候选。它不是后台常驻大脑，不会自动改代码、自动升级规则或自动写长期记忆；它只在 gate 和执行过程中由 Agent 显式运行并写入可审查记录。
 
 Runtime 命令统一从 `scripts/agent-runtime.py` 执行；`scripts/memory-tools.py` 只负责记忆检索、沉淀、导入和统计。
+
+Runtime 记录不能替代用户可见计划。`runtime-run`、`runtime-plan-tasks` 或 policy records 可以准备执行状态，但 Agent 仍必须在对话中展示对应 workflow 的执行意图、诊断计划或结构化计划。
+
+语言边界：Agent OS 模型侧文件默认使用英文；用户业务项目里的 docs、标题、注释、UI 文案、错误消息、commit 和项目 memory 必须跟随项目已有语言和用户语言，除非用户明确要求英文。
 
 Runtime 补齐 10 个核心 Agent 能力：
 

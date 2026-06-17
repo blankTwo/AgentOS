@@ -6,7 +6,7 @@ It is not required for every small change. Run it when Risk Gate or Change Polic
 
 ## When To Run
 Run or strongly recommend Review Gate for:
-- AGENTS.md / rules / skills changes
+- AGENTS.md / context / workflows / rules / skills changes
 - cross-layer full-stack changes
 - permission, data, security, payment, or release changes
 - large refactors or architecture changes
@@ -22,15 +22,18 @@ Run or strongly recommend Review Gate for:
 
 ### 2. Boundary
 - Does it preserve rule / skill / gate responsibility boundaries?
+- Does it preserve context / workflow / rule / skill / runtime responsibility boundaries?
 - Does any skill become too broad?
+- Does any workflow become a skill, or any skill become a workflow?
 - Does it mistake stack context for skill selection?
 - Did it avoid unnecessary stack-specific skills?
 
 ### 3. Consistency
 - Are terms consistent?
 - Are stale positioning, stale flows, or stale rules removed?
-- Do README / AGENTS / rules / skills conflict?
+- Do README / AGENTS / context / workflows / rules / skills conflict?
 - Is the Rules Loading Order still sensible?
+- Did Agent OS English-language policy stay inside model-facing Agent OS files instead of leaking into user project artifacts?
 
 ### 4. Evidence And Validation
 - Are conclusions based on files, code, logs, tests, or user context?
@@ -47,6 +50,7 @@ Run or strongly recommend Review Gate for:
 
 ### 6. Executability
 - Can the new rule answer when it triggers, how to execute, and how to validate?
+- Can the new workflow answer when it triggers, what user-visible output is required, how to execute, and how to validate?
 - Is it concise enough?
 - Does it require guessing to follow?
 - Could it cause infinite loops, unlimited skill creation, or memory bloat?

@@ -10,6 +10,8 @@
 - Skills, when reuse value and trigger boundaries are clear.
 - Rules, when the behavior is stable and broadly applicable.
 - AGENTS.md, only when the user explicitly asks for Agent OS architecture, gate definitions, control-flow, or routing changes.
+- Context files, when the user explicitly asks to improve task situation classification or context modeling.
+- Workflow files, when the user explicitly asks to improve operating sequence, user-visible output, workflow routing, or agent behavior.
 
 ### AGENTS.md Exception
 When the user explicitly requests these changes, AGENTS.md may be modified:
@@ -17,6 +19,7 @@ When the user explicitly requests these changes, AGENTS.md may be modified:
 - Gate definition or execution-flow changes.
 - Control-rule revisions.
 - Project / Stack / Task Layer routing changes.
+- Context Layer or Workflow Layer integration.
 
 Before changing AGENTS.md, state:
 - reason for change
@@ -26,6 +29,7 @@ Before changing AGENTS.md, state:
 After changing AGENTS.md:
 - run Review Gate or an equivalent consistency check
 - check README / rules / skills for duplicated responsibility or stale rules
+- check context / workflows / runtime docs for duplicated responsibility or stale flows
 - state whether memory or evolution records are needed
 
 ## Promotion Standard
@@ -46,7 +50,7 @@ Experience may be promoted only when it is:
 
 ## Review Gate
 Run `rules/review-gate.md` for:
-- AGENTS.md / rules / skills changes
+- AGENTS.md / context / workflows / rules / skills changes
 - large architecture or cross-layer changes
 - permission, data, security, payment, or release risk
 
@@ -55,3 +59,4 @@ Run `rules/review-gate.md` for:
 - Do not make rules less executable for the sake of being "more intelligent".
 - Rules must be concise, explicit, and actionable.
 - A new rule must answer: when it triggers, how to execute it, and how to validate it.
+- A workflow must answer: when to use it, what user-visible output is required, what evidence is required, how to execute, and how to validate.

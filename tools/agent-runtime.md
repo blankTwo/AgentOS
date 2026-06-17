@@ -4,6 +4,8 @@ Agent Runtime commands provide explicit operating-state controls for Codex Agent
 
 Use `scripts/agent-runtime.py` for goals, tasks, observations, capability graph, policy decisions, verification planning, recovery planning, next-action selection, and controlled improvement reviews.
 
+Runtime records do not replace user-visible workflow output. If a workflow requires intent, diagnostic plan, structured plan, recovery, or review decision, show it in the conversation before editing files.
+
 ---
 
 ## Commands
@@ -165,6 +167,8 @@ Policy decision types:
 - `performance`
 - `execution-mode`
 
+Policy records do not replace user-visible gate output. If policy changes execution mode, TDD, review, rollback, worktree, or performance handling, state that decision in the visible intent or plan before implementation.
+
 ---
 
 ## Plan Tasks
@@ -180,6 +184,8 @@ python scripts/agent-runtime.py runtime-plan-tasks \
 ```
 
 This creates planner, executor, verifier, and reviewer task records with order indexes.
+
+These task records are not the user-visible plan. After running this command, summarize the applicable workflow plan or intent to the user before implementation.
 
 ---
 
