@@ -34,3 +34,14 @@ The agent must not say:
 
 unless the concrete intent or plan has already been shown.
 
+## Skill Source Rule
+
+After workflow selection, if a skill is needed and the user project contains `.codex/skills/<skill>/SKILL.md`, read that project-local skill file first.
+
+Use global user-level skills only when:
+
+- the project-local skill is missing
+- the user explicitly asks for a global skill
+- the runtime environment exposes an external system skill that is not part of the project-local Agent OS
+
+Do not silently prefer global Codex home skill files such as `$CODEX_HOME/skills/...` or `~/.codex/skills/...` over project-local `.codex/skills/...` files.

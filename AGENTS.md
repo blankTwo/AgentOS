@@ -32,11 +32,28 @@ If the project root `AGENTS.md` defines `Agent display name: <name>`, use that n
 
 Use the display name as a lightweight prefix for user-visible execution intent, status updates, and final conclusions when it helps the user confirm that Codex Agent OS is active.
 
+At the first user-visible response in a project, if a display name is available, use it once at the start of the status paragraph. This makes bootstrap state observable to the user.
+
 Examples:
 - `Agent OS: I will first compare the PC and app request paths before changing code.`
 - `Agent OS: The current open-root-trpc workspace has no changes. Next, run an interface smoke test.`
 
 Do not prefix every bullet, table row, code block, command, or file path. Use it once at the start of a status paragraph or conclusion.
+
+---
+
+## Project-Local Asset Priority
+When this Agent OS is installed under a user project `.codex/`, project-local assets take precedence over global Codex assets.
+
+Priority:
+1. Project root `AGENTS.md`.
+2. Project-local `.codex/AGENTS.md`.
+3. Project-local `.codex/context/`, `.codex/workflows/`, `.codex/rules/`, `.codex/skills/`, `.codex/tools/`, `.codex/memory/`.
+4. Global user-level Codex assets only when project-local assets are missing, explicitly requested, or provided by the runtime environment as external tools.
+
+When using a skill that exists in `.codex/skills/<skill>/SKILL.md`, read the project-local skill file first. Do not prefer global Codex home skills such as `$CODEX_HOME/skills/...` or `~/.codex/skills/...` over the project-local `.codex/skills/...` copy.
+
+If an external/global skill is used because no project-local skill exists, mention that source when it affects behavior.
 
 ---
 
