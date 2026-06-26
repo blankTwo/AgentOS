@@ -16,6 +16,8 @@ Before starting any task:
 3. Prefer project-local `.agent-os/skills/<skill>/SKILL.md` over global user-level skills when both exist.
 4. Treat this repository root as the user project.
 5. Keep project-specific decisions in `.agent-os/memory/projects/{project}.md`.
-6. Do not modify `.agent-os/AGENTS.md` unless the user explicitly asks to upgrade Agent OS itself.
+6. Save durable implementation plans, task breakdowns, decisions, reviews, and verification records under `docs/agent-os/`.
+7. Before final response, decide whether project README/docs, `docs/agent-os/`, project memory, or Agent OS docs need updates; if not, state why.
+8. Do not modify `.agent-os/AGENTS.md` unless the user explicitly asks to upgrade Agent OS itself.
 
 Project-specific rules can be added below this line.

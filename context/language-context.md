@@ -28,6 +28,19 @@ Follow project/user language for:
 - error messages
 - commit messages
 - memory written for a specific business project
+- execution docs under `docs/agent-os/`
+
+## Execution Document Paths
+
+When writing durable project execution documents, use these fixed user-project paths:
+
+- plans: `docs/agent-os/plans/`
+- task breakdowns: `docs/agent-os/tasks/`
+- decisions: `docs/agent-os/decisions/`
+- reviews: `docs/agent-os/reviews/`
+- verification records: `docs/agent-os/verification/`
+
+These documents are user project artifacts. They must follow the project/user language and must not be written under `.agent-os/`.
 
 ## Detection Order
 

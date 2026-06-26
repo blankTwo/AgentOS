@@ -237,6 +237,22 @@ User project artifacts must follow the existing project language and the user's 
 
 Do not impose English headings or English business prose on a Chinese business project only because Agent OS files are English.
 
+### Project Execution Documents
+Project execution documents must be written to the user project, not to the Agent OS system directory or the Agent OS source repository.
+
+Fixed paths:
+- Implementation plans -> `docs/agent-os/plans/`
+- Task breakdowns / todo implementation docs -> `docs/agent-os/tasks/`
+- Technical or business decisions -> `docs/agent-os/decisions/`
+- Review, audit, or retrospective docs -> `docs/agent-os/reviews/`
+- Verification records -> `docs/agent-os/verification/`
+
+Boundaries:
+- `.agent-os/` is the Agent OS system directory. Do not store project business plans, task docs, decision records, reviews, or verification reports there.
+- `docs/agent-os/` is the user project's execution-document directory and should follow the user project's language.
+- `memory/projects/{project}.md` stores durable summaries, constraints, pitfalls, and reusable decisions; it must not replace full execution documents.
+- Agent Runtime SQLite records store structured state; they must not replace user-visible plans or project execution documents when a durable document is needed.
+
 ### Evidence Gate
 Collect evidence before conclusions for:
 - bugfix / diagnosis / incident / regression
@@ -387,6 +403,29 @@ Unable to validate:
 - Mark pending validation and remaining risk.
 - If it affects future work, write it to project memory or structured memory.
 
+### Documentation Gate
+Before the final response, decide whether documentation must be created or updated.
+
+Check these documentation targets:
+- User-facing project README or docs when setup, usage, behavior, configuration, API contract, workflow, deployment, or troubleshooting changed.
+- Project execution documents under `docs/agent-os/` when the task produced a durable plan, task breakdown, decision, review, retrospective, or verification record.
+- Project memory summary under `memory/projects/{project}.md` when the task produced durable project context, constraints, decisions, pitfalls, or reusable lessons.
+- Agent OS documentation, AGENTS, context, workflows, rules, skills, tools, templates, and tests when Agent OS behavior changed.
+
+Documentation update is required when:
+- The delivered behavior differs from existing documentation.
+- A new capability, command, path, configuration, workflow, contract, validation method, or operational constraint was added or changed.
+- The user would need the information later to install, use, verify, rollback, or maintain the change.
+- Agent OS rules, workflows, gates, runtime behavior, memory policy, or installation layout changed.
+
+Documentation may be skipped only when the change is self-evident, local, and does not affect usage, contracts, operations, decisions, or future maintenance. If skipped, state the reason briefly in the final response.
+
+Boundaries:
+- Documentation Gate does not replace Validation Gate or Memory Gate.
+- Memory is not documentation. A memory summary can preserve lessons, but README/docs/execution documents must still be updated when the user or future maintainers need readable instructions or records.
+- Runtime records are not documentation. They can support evidence, but they do not replace user project docs or Agent OS docs.
+- Do not write project documentation under `.agent-os/` unless it is Agent OS system documentation explicitly being upgraded.
+
 ### Memory Gate
 At task end, decide:
 - whether project memory is needed
@@ -442,8 +481,9 @@ Every task follows:
 10. Load detailed memory
 11. Implement changes
 12. Validation Gate
-13. Memory Gate
-14. Evaluate evolution candidates
+13. Documentation Gate
+14. Memory Gate
+15. Evaluate evolution candidates
 
 Memory Summary is for fast project context. Detailed Memory is for implementation-relevant decisions, patterns, and previous fixes. Skills are selected after gates, not before gates.
 
@@ -723,5 +763,6 @@ At task end, check:
 - Risk Gate: plan / worktree / TDD / review / rollback / performance
 - Agent Runtime Gate: L2+ runtime records, capability/recovery when required
 - Validation Gate: method, result, remaining risk
+- Documentation Gate: README/docs/execution docs/Agent OS docs updated, or explicit reason why no update is needed
 - Memory Gate: memory decision and candidate decision
 - SQLite memory: required `record-session` and `record-item`, or reason if not run

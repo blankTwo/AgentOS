@@ -20,13 +20,17 @@ Required plan:
 1. Detect current capability state: complete, partial, broken-chain, absent, or unconfirmed.
 2. Inspect existing patterns and adjacent implementations.
 3. Apply Language Context for docs, comments, UI copy, and project memory.
-4. Preserve existing contracts and user workflows unless a change is explicit.
-5. Implement the smallest complete capability chain.
-6. Validate the main path and key boundary.
-7. Record feature or decision memory when reusable or project-specific.
+4. If a durable implementation plan or task breakdown is needed, write it under `docs/agent-os/plans/` or `docs/agent-os/tasks/` in the user project.
+5. Preserve existing contracts and user workflows unless a change is explicit.
+6. Implement the smallest complete capability chain.
+7. Validate the main path and key boundary.
+8. Run Documentation Gate: update README/docs, `docs/agent-os/`, or Agent OS docs when the feature changes usage, behavior, contracts, validation, or maintainability knowledge.
+9. Record feature or decision memory when reusable or project-specific.
 
 ## Rules
 
 - Do not implement a frontend-only assumption when backend/API evidence is required.
 - Do not ship an MVP placeholder when the user asked for a complete feature.
 - If capability state is partial, broken-chain, absent, or unconfirmed, use visible planning before editing.
+- Do not write project implementation plans or task docs under `.agent-os/`.
+- Do not finish a feature change without deciding and reporting whether documentation was updated or why it was unnecessary.

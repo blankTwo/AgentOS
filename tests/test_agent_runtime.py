@@ -35,6 +35,49 @@ class AgentRuntimeCliTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr)
         return json.loads(completed.stdout)
 
+    def test_project_execution_document_paths_are_documented(self) -> None:
+        required_paths = [
+            "docs/agent-os/plans/",
+            "docs/agent-os/tasks/",
+            "docs/agent-os/decisions/",
+            "docs/agent-os/reviews/",
+            "docs/agent-os/verification/",
+        ]
+        files = [
+            ROOT / "AGENTS.md",
+            ROOT / "README.md",
+            ROOT / "context" / "language-context.md",
+            ROOT / "rules" / "agent-runtime.md",
+            ROOT / "rules" / "memory-enhanced.md",
+        ]
+        combined = "\n".join(path.read_text(encoding="utf-8") for path in files)
+        for required_path in required_paths:
+            self.assertIn(required_path, combined)
+        self.assertIn("Do not write project execution documents under `.agent-os/`", combined)
+
+    def test_documentation_gate_is_documented(self) -> None:
+        files = [
+            ROOT / "AGENTS.md",
+            ROOT / "README.md",
+            ROOT / "rules" / "review-gate.md",
+            ROOT / "workflows" / "feature-implementation.md",
+            ROOT / "workflows" / "api-contract-change.md",
+            ROOT / "workflows" / "bug-diagnosis.md",
+            ROOT / "workflows" / "agent-os-evolution.md",
+        ]
+        combined = "\n".join(path.read_text(encoding="utf-8") for path in files)
+        required_terms = [
+            "Documentation Gate",
+            "README",
+            "README or docs",
+            "docs/agent-os/",
+            "Memory is not documentation",
+            "Runtime records are not documentation",
+            "why no documentation update was needed",
+        ]
+        for term in required_terms:
+            self.assertIn(term, combined)
+
     def test_detect_context_classifies_cross_layer_feature(self) -> None:
         result = self.run_cli(
             "runtime-detect-context",

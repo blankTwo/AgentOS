@@ -3,7 +3,7 @@
 ## Goal
 Add structured memory retrieval and recording while keeping Agent OS lightweight, reviewable, and controlled.
 
-This rule strengthens Memory Gate. It does not replace Markdown memory, Evolution Policy, or Review Gate.
+This rule strengthens Memory Gate. It does not replace Markdown memory, Documentation Gate, Evolution Policy, or Review Gate.
 
 ---
 
@@ -44,6 +44,13 @@ Memory is explicit and reviewable:
 - User preferences require Memory Gate judgment before recording.
 - Sensitive data, credentials, private data, and unverified guesses must not be recorded.
 
+Project execution documents are separate from memory:
+- Full plans, task breakdowns, decision records, reviews, and verification reports belong under the user project's `docs/agent-os/` directory.
+- Markdown memory should store durable summaries, constraints, pitfalls, and reusable lessons.
+- SQLite memory should store structured retrieval and recording indexes.
+- Do not write full project execution documents under `.agent-os/memory/`.
+- Memory does not replace documentation. If the user or a future maintainer needs setup, usage, API, validation, troubleshooting, or decision details, update README/docs or `docs/agent-os/` before Memory Gate.
+
 ---
 
 ## Context Gate Enhancement
@@ -79,7 +86,7 @@ Use search results as context, not unquestioned truth. Confirm important details
 
 ## Memory Gate Plus
 
-After Validation Gate, decide:
+After Documentation Gate, decide:
 1. Did this task produce a reusable memory item?
 2. Is it project-specific or cross-project?
 3. Should Markdown project memory be updated?

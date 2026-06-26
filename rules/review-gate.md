@@ -34,28 +34,36 @@ Run or strongly recommend Review Gate for:
 - Do README / AGENTS / context / workflows / rules / skills conflict?
 - Is the Rules Loading Order still sensible?
 - Did Agent OS English-language policy stay inside model-facing Agent OS files instead of leaking into user project artifacts?
+- Did durable project execution documents use `docs/agent-os/` instead of `.agent-os/`?
 
-### 4. Evidence And Validation
+### 4. Documentation Gate
+- Were user-facing README/docs updated when setup, usage, behavior, configuration, API contracts, deployment, troubleshooting, or validation changed?
+- Were durable plans, task breakdowns, decisions, reviews, and verification records written under `docs/agent-os/` when needed?
+- Were Agent OS README, AGENTS, context, workflows, rules, tools, templates, and tests updated when Agent OS behavior changed?
+- Did the final response state either what documentation changed or why no documentation update was needed?
+- Did the change avoid treating memory or Runtime records as substitutes for human-readable documentation?
+
+### 5. Evidence And Validation
 - Are conclusions based on files, code, logs, tests, or user context?
 - Is validation method and result stated?
 - Does validation cover the core path?
 - Are unable-to-validate, partial pass, and remaining risks marked?
 - For performance work, is there a baseline, target, or substitute validation?
 
-### 5. Evolution And Memory
+### 6. Evolution And Memory
 - Is project memory needed?
 - Is this only a candidate skill or candidate rule?
 - Does it satisfy Trigger / Count / Validation / Scope / Boundary?
 - Did it avoid recording one-off operations, unverified preferences, or ordinary success paths?
 
-### 6. Executability
+### 7. Executability
 - Can the new rule answer when it triggers, how to execute, and how to validate?
 - Can the new workflow answer when it triggers, what user-visible output is required, how to execute, and how to validate?
 - Is it concise enough?
 - Does it require guessing to follow?
 - Could it cause infinite loops, unlimited skill creation, or memory bloat?
 
-### 7. Risk And Rollback
+### 8. Risk And Rollback
 - Was impact scope identified?
 - Is rollback needed?
 - Is worktree isolation needed?

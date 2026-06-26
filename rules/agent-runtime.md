@@ -7,6 +7,17 @@ It does not create an always-on background agent. Runtime actions are explicit, 
 
 Runtime records never replace user-visible workflow output. If the selected workflow requires execution intent, a diagnostic plan, a structured plan, recovery strategy, or review decision, the agent must show it to the user before implementation.
 
+Runtime records also do not replace durable project execution documents. When a task needs a lasting implementation plan, task breakdown, decision record, review, or verification report, write it under the user project's `docs/agent-os/` directory:
+- `docs/agent-os/plans/`
+- `docs/agent-os/tasks/`
+- `docs/agent-os/decisions/`
+- `docs/agent-os/reviews/`
+- `docs/agent-os/verification/`
+
+Do not write project execution documents under `.agent-os/`.
+
+Runtime records also do not replace Documentation Gate. If runtime activity changes user-facing setup, usage, commands, contracts, validation, troubleshooting, or Agent OS behavior, update README/docs/tool docs/templates/tests or state why no documentation update is needed before final response.
+
 ---
 
 ## Runtime Capabilities

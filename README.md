@@ -127,6 +127,13 @@ your-project/
 │   ├── memory/
 │   ├── scripts/
 │   └── tools/
+├── docs/
+│   └── agent-os/
+│       ├── plans/
+│       ├── tasks/
+│       ├── decisions/
+│       ├── reviews/
+│       └── verification/
 └── ...
 ```
 
@@ -194,7 +201,8 @@ Before starting any task:
 3. Prefer project-local `.agent-os/skills/<skill>/SKILL.md` over global user-level skills when both exist.
 4. Treat this repository root as the user project.
 5. Keep project-specific decisions in `.agent-os/memory/projects/{project}.md`.
-6. Do not modify `.agent-os/AGENTS.md` unless the user explicitly asks to upgrade Agent OS itself.
+6. Save durable implementation plans, task breakdowns, decisions, reviews, and verification records under `docs/agent-os/`.
+7. Do not modify `.agent-os/AGENTS.md` unless the user explicitly asks to upgrade Agent OS itself.
 
 Project-specific rules can be added below this line.
 ```
@@ -238,7 +246,48 @@ your-project/
 
 - `AGENTS.md` 作为总控入口，先识别项目、技术栈、任务层，再选择对应 skill
 - 项目特定信息会写入 `.agent-os/memory/projects/{project}.md`
+- 项目执行文档会写入 `docs/agent-os/`，不会写入 `.agent-os/`
 - 重复出现、已验证、有边界的经验，可以从 memory 升级为 skill 或 rule
+
+### 项目执行文档目录
+
+`.agent-os/` 是 Agent OS 系统目录，只保存规则、workflow、skill、memory、runtime 工具和模板。用户项目里的计划、待办、决策、复盘和验证记录必须放到项目根目录的 `docs/agent-os/`。
+
+固定目录：
+
+```text
+your-project/
+├── .agent-os/
+├── docs/
+│   └── agent-os/
+│       ├── plans/          # 实施计划
+│       ├── tasks/          # 待办拆解
+│       ├── decisions/      # 技术或业务决策
+│       ├── reviews/        # Review / 复盘
+│       └── verification/   # 验证记录
+└── src/
+```
+
+边界：
+
+- 完整执行计划：`docs/agent-os/plans/`
+- 待办实现文档：`docs/agent-os/tasks/`
+- 技术或业务决策：`docs/agent-os/decisions/`
+- Review、审计、复盘：`docs/agent-os/reviews/`
+- 验证记录：`docs/agent-os/verification/`
+- 长期记忆摘要：`.agent-os/memory/projects/{project}.md`
+- 结构化运行状态：`.agent-os/memory/index.db`
+
+### 文档同步约束
+
+每次任务完成前必须过 Documentation Gate。Agent 需要判断这些位置是否要更新：
+
+- 项目 `README.md` 或 `docs/`：当安装、使用方式、配置、命令、接口、部署、排错、业务行为发生变化
+- `docs/agent-os/`：当任务产生需要长期保留的计划、待办、决策、review、复盘或验证记录
+- `.agent-os/memory/projects/{project}.md`：当任务产生项目约束、决策、坑点、复用经验摘要
+- Agent OS 自身文档、规则、workflow、skill、tool、template 和测试：当 Agent OS 行为或安装方式变化
+
+如果文档不需要更新，Agent 也要在最终回复中给出简短原因。Memory 和 Runtime 记录不能替代 README、项目 docs 或 `docs/agent-os/`。
 
 ## 常见任务如何路由
 
@@ -267,6 +316,7 @@ your-project/
 - `Planning Gate`：按上下文、workflow、业务风险和不确定性决定 plan 深度，而不是只按 L1-L4
 - `Agent Runtime Gate`：L2 及以上、长任务或能力链路任务记录目标、任务、策略、验证和恢复状态
 - `Validation Gate`：完成前说明验证方式、验证结果、失败处理和剩余风险
+- `Documentation Gate`：完成前判断 README、项目 docs、`docs/agent-os/` 执行文档、项目 memory、Agent OS 文档是否需要同步更新；如果不需要，最终回复要说明原因
 - `Memory Gate`：判断是否写入 project memory，是否只是 candidate，是否不应沉淀
 
 简单任务可以简短完成这些判断，但仍需要一句用户可见执行意图；复杂或不确定任务必须完整经过 gate 并展示计划。

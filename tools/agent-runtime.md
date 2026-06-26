@@ -6,6 +6,10 @@ Use `scripts/agent-runtime.py` for goals, tasks, observations, capability graph,
 
 Runtime records do not replace user-visible workflow output. If a workflow requires intent, diagnostic plan, structured plan, recovery, or review decision, show it in the conversation before editing files.
 
+Runtime records do not replace durable project execution documents. If a task needs a saved implementation plan, task breakdown, decision record, review, or verification report, write it to the user project's `docs/agent-os/` directory, not to `.agent-os/`.
+
+Runtime records do not replace Documentation Gate. If runtime work changes commands, setup, usage, contracts, validation, troubleshooting, or Agent OS behavior, update the relevant README/docs/tools/templates/tests or state why documentation did not need changes.
+
 ---
 
 ## Commands
