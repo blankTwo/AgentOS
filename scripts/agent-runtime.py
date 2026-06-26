@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Agent Runtime controllers for Codex Agent OS."""
+"""Agent Runtime controllers for Agent OS."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from codex_store import (
+from agent_store import (
     DEFAULT_DB,
     DEFAULT_SCHEMA,
     ROOT,
@@ -38,7 +38,7 @@ RUNTIME_KINDS = (
     "improvement",
 )
 
-CONTAINER_PROJECT_NAMES = {".codex", ".config", ".meta", "workspace"}
+CONTAINER_PROJECT_NAMES = {".agent-os", ".config", ".meta", "workspace"}
 
 TASK_LAYER_KEYWORDS = {
     "UI": ("ui", "page", "component", "style", "layout", "interaction", "responsive", "tailwind", "react", "vue"),
@@ -99,7 +99,7 @@ def parse_runtime_links(values: list[str] | None) -> list[tuple[str, str]]:
 
 
 def agent_workspace_root() -> Path:
-    return ROOT.parent if ROOT.name == ".codex" else ROOT
+    return ROOT.parent if ROOT.name == ".agent-os" else ROOT
 
 
 def split_terms(values: list[str] | None, fallback: str | None = None) -> list[str]:
@@ -1003,13 +1003,13 @@ def verification_checks_for(task_layers: list[str], scale: str, changed_files: l
     suffixes = {path.suffix.lower() for path in files}
     checks: list[dict[str, str]] = []
 
-    runtime_files = {"scripts/agent-runtime.py", "scripts/codex_store.py"}
+    runtime_files = {"scripts/agent-runtime.py", "scripts/agent_store.py"}
     if "runtime" in layers or any(path.as_posix() in runtime_files for path in files):
         checks.extend(
             [
                 {
                     "scope": "agent runtime syntax",
-                    "command": "python -m py_compile scripts\\agent-runtime.py scripts\\codex_store.py",
+                    "command": "python -m py_compile scripts\\agent-runtime.py scripts\\agent_store.py",
                     "rationale": "Agent Runtime CLI and shared store changes must compile.",
                 },
                 {
@@ -2450,7 +2450,7 @@ def cmd_runtime_summary(args: argparse.Namespace) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Codex Agent OS Agent Runtime controllers")
+    parser = argparse.ArgumentParser(description="Agent OS Agent Runtime controllers")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     context_parser = subparsers.add_parser("runtime-detect-context", help="Detect project, stack, task layer, and scale")

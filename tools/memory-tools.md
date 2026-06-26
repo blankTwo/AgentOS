@@ -1,6 +1,6 @@
 # Memory Tools
 
-These tools provide a real SQLite-backed memory backend for Codex Agent OS.
+These tools provide a real SQLite-backed memory backend for Agent OS.
 
 Markdown memory remains the reviewable source of truth. The SQLite backend provides fast retrieval, structured memory indexing, candidate skill tracking, session summaries, and skill usage analytics.
 

@@ -1,7 +1,7 @@
 # Enhanced Memory Rules
 
 ## Goal
-Add structured memory retrieval and recording while keeping Codex Agent OS lightweight, reviewable, and controlled.
+Add structured memory retrieval and recording while keeping Agent OS lightweight, reviewable, and controlled.
 
 This rule strengthens Memory Gate. It does not replace Markdown memory, Evolution Policy, or Review Gate.
 
@@ -30,7 +30,7 @@ If `scripts/memory-tools.py` or `memory/schema.sql` is unavailable, continue usi
 
 ## No Autonomous Memory Brain
 
-Codex Agent OS does not have a background autonomous memory brain.
+Agent OS does not have a background autonomous memory brain.
 
 The agent must not:
 - silently read or summarize full chat history into long-term memory

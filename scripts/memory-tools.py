@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SQLite-backed memory tools for Codex Agent OS."""
+"""SQLite-backed memory tools for Agent OS."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from codex_store import (
+from agent_store import (
     DEFAULT_DB,
     DEFAULT_SCHEMA,
     PROJECT_MEMORY_DIR,
@@ -665,7 +665,7 @@ def add_common_args(parser: argparse.ArgumentParser) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Codex Agent OS memory tools")
+    parser = argparse.ArgumentParser(description="Agent OS memory tools")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     init_parser = subparsers.add_parser("init", help="Initialize memory database")

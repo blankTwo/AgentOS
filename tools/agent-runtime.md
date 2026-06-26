@@ -1,6 +1,6 @@
 # Agent Runtime Tools
 
-Agent Runtime commands provide explicit operating-state controls for Codex Agent OS. They use the same SQLite database as memory tools, but they are not memory commands.
+Agent Runtime commands provide explicit operating-state controls for Agent OS. They use the same SQLite database as memory tools, but they are not memory commands.
 
 Use `scripts/agent-runtime.py` for goals, tasks, observations, capability graph, policy decisions, verification planning, recovery planning, next-action selection, and controlled improvement reviews.
 
@@ -251,7 +251,7 @@ python scripts/agent-runtime.py runtime-detect-validation-profile \
 ```bash
 python scripts/agent-runtime.py runtime-run-verification \
   --project my-project \
-  --command "python -m py_compile scripts\\agent-runtime.py scripts\\codex_store.py" \
+  --command "python -m py_compile scripts\\agent-runtime.py scripts\\agent_store.py" \
   --record
 ```
 

@@ -6,12 +6,12 @@ Language Context decides which language should be used for artifacts the agent w
 
 Agent OS model-facing files should use English by default:
 
-- `.codex/AGENTS.md`
-- `.codex/context/`
-- `.codex/workflows/`
-- `.codex/rules/`
-- `.codex/skills/`
-- `.codex/tools/`
+- `.agent-os/AGENTS.md`
+- `.agent-os/context/`
+- `.agent-os/workflows/`
+- `.agent-os/rules/`
+- `.agent-os/skills/`
+- `.agent-os/tools/`
 
 User project artifacts must follow the existing project language and the user's language unless the user explicitly asks otherwise.
 

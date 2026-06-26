@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Shared SQLite store helpers for Codex Agent OS tools."""
+"""Shared SQLite store helpers for Agent OS tools."""
 
 from __future__ import annotations
 

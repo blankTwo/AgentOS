@@ -1,7 +1,7 @@
 # Agent Runtime Rules
 
 ## Goal
-Agent Runtime gives Codex Agent OS a structured operating layer for long-running engineering work. It records goals, tasks, observations, capability state, policy decisions, verification, recovery points, and controlled improvement reviews, and it provides lightweight controllers for capability scanning, policy evaluation, next-action selection, verification planning, and recovery planning.
+Agent Runtime gives Agent OS a structured operating layer for long-running engineering work. It records goals, tasks, observations, capability state, policy decisions, verification, recovery points, and controlled improvement reviews, and it provides lightweight controllers for capability scanning, policy evaluation, next-action selection, verification planning, and recovery planning.
 
 It does not create an always-on background agent. Runtime actions are explicit, reviewable commands run by the agent during gates and task execution.
 
@@ -11,7 +11,7 @@ Runtime records never replace user-visible workflow output. If the selected work
 
 ## Runtime Capabilities
 
-Codex Agent OS tracks ten agent capabilities through runtime records and controller commands:
+Agent OS tracks ten agent capabilities through runtime records and controller commands:
 
 | Capability | Runtime Record | Purpose |
 | --- | --- | --- |
@@ -164,7 +164,7 @@ python scripts/agent-runtime.py runtime-complete-task --project my-project --id 
 python scripts/agent-runtime.py runtime-next --project my-project --advance
 python scripts/agent-runtime.py runtime-plan-verification --project my-project --task-layer Runtime Integration --scale L3 --record
 python scripts/agent-runtime.py runtime-detect-validation-profile --project my-project --stack Python --task-layer Runtime --files scripts/agent-runtime.py
-python scripts/agent-runtime.py runtime-run-verification --project my-project --command "python -m py_compile scripts\\agent-runtime.py scripts\\codex_store.py" --record
+python scripts/agent-runtime.py runtime-run-verification --project my-project --command "python -m py_compile scripts\\agent-runtime.py scripts\\agent_store.py" --record
 python scripts/agent-runtime.py runtime-plan-recovery --project my-project --files src/Login.tsx server/auth.ts --checkpoint HEAD --record
 python scripts/agent-runtime.py runtime-create-checkpoint --project my-project --files src/Login.tsx server/auth.ts
 python scripts/agent-runtime.py runtime-mark-recovery --id 1 --status obsolete --reason "validation passed"
