@@ -110,6 +110,42 @@ class AgentRuntimeCliTests(unittest.TestCase):
         for term in required_terms:
             self.assertIn(term, readme)
 
+    def test_vscode_plugin_sources_are_present(self) -> None:
+        package_json = (ROOT / "vscode-plugin" / "package.json").read_text(encoding="utf-8")
+        extension_js = (ROOT / "vscode-plugin" / "extension.js").read_text(encoding="utf-8")
+        plugin_readme = (ROOT / "vscode-plugin" / "README.md").read_text(encoding="utf-8")
+        sync_script = (ROOT / "vscode-plugin" / "scripts" / "sync-agent-os.js").read_text(encoding="utf-8")
+        vscodeignore = (ROOT / "vscode-plugin" / ".vscodeignore").read_text(encoding="utf-8")
+        license_text = (ROOT / "vscode-plugin" / "LICENSE").read_text(encoding="utf-8")
+        self.assertIn("agentOs.injectWorkspace", package_json)
+        self.assertIn("Agent OS：注入当前工作区", package_json)
+        self.assertIn("agentOs.uninstallWorkspace", package_json)
+        self.assertIn("agentOsStatus", package_json)
+        self.assertIn('"type": "webview"', package_json)
+        self.assertNotIn("viewsWelcome", package_json)
+        self.assertIn("https://github.com/blankTwo/AgentOS", package_json)
+        self.assertIn("prepack", package_json)
+        self.assertIn('"package"', package_json)
+        self.assertIn("prepare:agent-os && npx @vscode/vsce package", package_json)
+        self.assertIn("registerWebviewViewProvider", extension_js)
+        self.assertIn("enableCommandUris", extension_js)
+        self.assertIn("doctor", extension_js)
+        self.assertIn("runtime-summary", extension_js)
+        self.assertIn("dashboard", extension_js)
+        self.assertIn("runtime-report", extension_js)
+        self.assertIn("Agent OS 状态", extension_js)
+        self.assertIn("注入工作区", extension_js)
+        self.assertIn("卸载工作区", extension_js)
+        self.assertIn("rootAgentsCreated", extension_js)
+        self.assertIn("rootAgentsLooksGenerated", extension_js)
+        self.assertIn(".install-meta.json", extension_js)
+        self.assertIn("postMessage", extension_js)
+        self.assertIn("openExternal", extension_js)
+        self.assertIn("prepare:agent-os", plugin_readme)
+        self.assertIn("vscode-plugin", sync_script)
+        self.assertIn("!agent-os/**", vscodeignore)
+        self.assertIn("MIT License", license_text)
+
     def test_runtime_doctor_checks_install_health(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             db = str(Path(tmp) / "runtime.db")
@@ -157,6 +193,7 @@ class AgentRuntimeCliTests(unittest.TestCase):
             self.assertEqual(completed.returncode, 0, completed.stderr)
             self.assertTrue((target / ".agent-os" / "AGENTS.md").exists())
             self.assertTrue((target / ".agent-os" / "scripts" / "agent-runtime.py").exists())
+            self.assertFalse((target / ".agent-os" / "vscode-plugin").exists())
             self.assertTrue((target / "AGENTS.md").exists())
             self.assertIn("This project uses Agent OS from `.agent-os/`", (target / "AGENTS.md").read_text(encoding="utf-8"))
             self.assertTrue((target / ".agent-os" / "memory" / "index.db").exists())
@@ -177,6 +214,39 @@ class AgentRuntimeCliTests(unittest.TestCase):
             self.assertEqual(doctor.returncode, 0, doctor.stderr)
             result = json.loads(doctor.stdout)
             self.assertTrue(result["ok"], result)
+
+    def test_agent_os_cli_manages_git_info_exclude(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "user-project"
+            target.mkdir(parents=True)
+            subprocess.run(["git", "init"], cwd=target, check=True, text=True, capture_output=True)
+            completed = self.run_agent_os_cli("install", "--target", str(target))
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            exclude_path = target / ".git" / "info" / "exclude"
+            self.assertTrue(exclude_path.exists())
+            exclude_text = exclude_path.read_text(encoding="utf-8")
+            self.assertIn("# Agent OS managed excludes", exclude_text)
+            self.assertIn("AGENTS.md", exclude_text)
+            self.assertIn(".agent-os/", exclude_text)
+
+            uninstall = self.run_agent_os_cli("uninstall", "--target", str(target), "--remove-root-agents")
+            self.assertEqual(uninstall.returncode, 0, uninstall.stderr)
+            self.assertFalse((target / ".agent-os").exists())
+            self.assertFalse((target / "AGENTS.md").exists())
+            self.assertNotIn("# Agent OS managed excludes", exclude_path.read_text(encoding="utf-8"))
+
+    def test_agent_os_cli_writes_gitignore_without_git_repo(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "user-project"
+            target.mkdir(parents=True)
+            completed = self.run_agent_os_cli("ignore", "--target", str(target))
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            gitignore_path = target / ".gitignore"
+            self.assertTrue(gitignore_path.exists())
+            content = gitignore_path.read_text(encoding="utf-8")
+            self.assertIn("# Agent OS managed ignores", content)
+            self.assertIn("AGENTS.md", content)
+            self.assertIn(".agent-os/", content)
 
     def test_runtime_version_and_migrate_support_safe_upgrade(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -297,7 +367,7 @@ class AgentRuntimeCliTests(unittest.TestCase):
             self.assertEqual(data_result["data_source"]["kind"], "vscode-dashboard-data")
             self.assertIn("records", data_result["data_source"])
             html_text = output.read_text(encoding="utf-8")
-            for heading in ("Goals", "Runs", "Tasks", "Events", "Verification"):
+            for heading in ("目标", "运行", "任务", "事件", "验证"):
                 self.assertIn(heading, html_text)
             self.assertIn("goal-dashboard", html_text)
             self.assertIn("run-dashboard", html_text)

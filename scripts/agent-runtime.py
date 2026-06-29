@@ -4630,7 +4630,7 @@ def build_dashboard_data(conn, project: str, limit: int = 20) -> dict[str, Any]:
 
 def render_dashboard_table(title: str, rows: list[dict[str, Any]]) -> str:
     if not rows:
-        return f"<section><h2>{html.escape(title)}</h2><p class=\"empty\">No records.</p></section>"
+        return f"<section><h2>{html.escape(title)}</h2><p class=\"empty\">暂无记录</p></section>"
     columns = list(rows[0].keys())
     header = "".join(f"<th>{html.escape(column)}</th>" for column in columns)
     body_rows = []
@@ -4642,20 +4642,20 @@ def render_dashboard_table(title: str, rows: list[dict[str, Any]]) -> str:
 
 def render_dashboard_html(data: dict[str, Any]) -> str:
     sections = [
-        render_dashboard_table("Goals", data["goals"]),
-        render_dashboard_table("Runs", data["runs"]),
-        render_dashboard_table("Tasks", data["tasks"]),
-        render_dashboard_table("Events", data["events"]),
-        render_dashboard_table("Verification", data["verification"]),
+        render_dashboard_table("目标", data["goals"]),
+        render_dashboard_table("运行", data["runs"]),
+        render_dashboard_table("任务", data["tasks"]),
+        render_dashboard_table("事件", data["events"]),
+        render_dashboard_table("验证", data["verification"]),
     ]
     summary_cards = "".join(
         f"<div class=\"metric\"><strong>{len(data[key])}</strong><span>{label}</span></div>"
         for key, label in (
-            ("goals", "Goals"),
-            ("runs", "Runs"),
-            ("tasks", "Tasks"),
-            ("events", "Events"),
-            ("verification", "Verification"),
+            ("goals", "目标"),
+            ("runs", "运行"),
+            ("tasks", "任务"),
+            ("events", "事件"),
+            ("verification", "验证"),
         )
     )
     return f"""<!doctype html>
@@ -4663,30 +4663,30 @@ def render_dashboard_html(data: dict[str, Any]) -> str:
 <head>
   <meta charset=\"utf-8\">
   <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">
-  <title>Agent OS Runtime Dashboard - {html.escape(data['project'])}</title>
+  <title>Agent OS 运行总览 - {html.escape(data['project'])}</title>
   <style>
     body {{ margin: 0; font-family: Arial, sans-serif; background: #f7f8fb; color: #1f2937; }}
-    header {{ padding: 24px 32px; background: #111827; color: white; }}
-    main {{ padding: 24px 32px 40px; }}
-    h1 {{ margin: 0 0 8px; font-size: 28px; }}
-    h2 {{ margin: 28px 0 12px; font-size: 18px; }}
-    .meta {{ color: #cbd5e1; margin: 0; }}
-    .metrics {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 20px 0 8px; }}
-    .metric {{ background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px 16px; }}
-    .metric strong {{ display: block; font-size: 24px; }}
-    .metric span {{ color: #6b7280; font-size: 13px; }}
-    section {{ margin-top: 16px; }}
+    header {{ padding: 16px 24px 14px; background: #111827; color: white; }}
+    main {{ padding: 16px 24px 28px; }}
+    h1 {{ margin: 0 0 6px; font-size: 22px; }}
+    h2 {{ margin: 16px 0 8px; font-size: 15px; }}
+    .meta {{ color: #cbd5e1; margin: 0; font-size: 12px; }}
+    .metrics {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin: 12px 0 6px; }}
+    .metric {{ background: white; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 12px; }}
+    .metric strong {{ display: block; font-size: 20px; line-height: 1.1; }}
+    .metric span {{ color: #6b7280; font-size: 12px; }}
+    section {{ margin-top: 10px; }}
     table {{ width: 100%; border-collapse: collapse; background: white; border: 1px solid #e5e7eb; }}
-    th, td {{ padding: 10px 12px; border-bottom: 1px solid #e5e7eb; text-align: left; font-size: 13px; vertical-align: top; }}
+    th, td {{ padding: 8px 10px; border-bottom: 1px solid #e5e7eb; text-align: left; font-size: 12px; vertical-align: top; }}
     th {{ background: #f3f4f6; font-weight: 700; }}
     tr:last-child td {{ border-bottom: 0; }}
-    .empty {{ background: white; border: 1px solid #e5e7eb; padding: 14px 16px; color: #6b7280; }}
+    .empty {{ background: white; border: 1px solid #e5e7eb; padding: 10px 12px; color: #6b7280; }}
   </style>
 </head>
 <body>
   <header>
-    <h1>Agent OS Runtime Dashboard</h1>
-    <p class=\"meta\">Project: {html.escape(data['project'])} · Generated: {html.escape(data['generated_at'])}</p>
+    <h1>Agent OS 运行总览</h1>
+    <p class=\"meta\">项目：{html.escape(data['project'])} · 生成时间：{html.escape(data['generated_at'])}</p>
   </header>
   <main>
     <div class=\"metrics\">{summary_cards}</div>

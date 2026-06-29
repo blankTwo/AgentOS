@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import shutil
 import subprocess
 import sys
@@ -36,11 +37,20 @@ Before starting any task:
 
 Project-specific rules can be added below this line.
 """
+GIT_EXCLUDE_START = "# Agent OS managed excludes"
+GIT_EXCLUDE_END = "# End Agent OS managed excludes"
+GIT_EXCLUDE_ENTRIES = (
+    "AGENTS.md",
+    ".agent-os/",
+)
+GITIGNORE_START = "# Agent OS managed ignores"
+GITIGNORE_END = "# End Agent OS managed ignores"
 EXCLUDE_NAMES = {
     ".git",
     ".idea",
     ".vscode",
     ".tmp",
+    "vscode-plugin",
     "__pycache__",
     ".pytest_cache",
 }
@@ -66,6 +76,61 @@ def should_skip(path: Path, target_agent_os: Path | None = None) -> bool:
     if rel.endswith(".pyc") or rel.endswith(".lock"):
         return True
     return False
+
+
+def git_dir_for(root: Path) -> Path | None:
+    completed = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "--git-dir"],
+        text=True,
+        capture_output=True,
+    )
+    if completed.returncode != 0:
+        return None
+    git_dir = Path(completed.stdout.strip())
+    if not git_dir.is_absolute():
+        git_dir = (root / git_dir).resolve()
+    return git_dir
+
+
+def managed_ignore_target(root: Path) -> tuple[Path, str, str]:
+    git_dir = git_dir_for(root)
+    if git_dir:
+        return git_dir / "info" / "exclude", GIT_EXCLUDE_START, GIT_EXCLUDE_END
+    return root / ".gitignore", GITIGNORE_START, GITIGNORE_END
+
+
+def update_managed_ignore_file(root: Path, entries: tuple[str, ...]) -> tuple[bool, str]:
+    ignore_path, start_marker, end_marker = managed_ignore_target(root)
+    label = ".git/info/exclude" if ignore_path.name == "exclude" else ".gitignore"
+    existing = ignore_path.read_text(encoding="utf-8") if ignore_path.exists() else ""
+    block = "\n".join([start_marker, *entries, end_marker]) + "\n"
+    pattern = re.compile(rf"(?ms)^\s*{re.escape(start_marker)}\n.*?^\s*{re.escape(end_marker)}\n?")
+    if pattern.search(existing):
+        updated = pattern.sub(block, existing)
+    else:
+        if existing and not existing.endswith("\n"):
+            existing += "\n"
+        if existing and not existing.endswith("\n\n"):
+            existing += "\n"
+        updated = existing + block
+    if updated != existing:
+        ignore_path.parent.mkdir(parents=True, exist_ok=True)
+        ignore_path.write_text(updated, encoding="utf-8")
+    return True, f"update {label} -> {ignore_path}"
+
+
+def remove_managed_ignore_file(root: Path) -> tuple[bool, str]:
+    ignore_path, start_marker, end_marker = managed_ignore_target(root)
+    label = ".git/info/exclude" if ignore_path.name == "exclude" else ".gitignore"
+    if not ignore_path.exists():
+        return True, f"{label} not found -> {ignore_path}"
+    existing = ignore_path.read_text(encoding="utf-8")
+    pattern = re.compile(rf"(?ms)^\s*{re.escape(start_marker)}\n.*?^\s*{re.escape(end_marker)}\n?")
+    updated = pattern.sub("", existing)
+    if updated != existing:
+        ignore_path.write_text(updated, encoding="utf-8")
+        return True, f"remove {label} block -> {ignore_path}"
+    return True, f"no Agent OS managed block found in {label} -> {ignore_path}"
 
 
 def copy_agent_os(target_agent_os: Path, dry_run: bool = False) -> list[str]:
@@ -112,6 +177,8 @@ def cmd_install(args: argparse.Namespace) -> int:
     actions.append(f"initialize memory directory -> {memory_dir}")
     if not args.dry_run:
         memory_dir.mkdir(parents=True, exist_ok=True)
+        _, action = update_managed_ignore_file(target, GIT_EXCLUDE_ENTRIES)
+        actions.append(action)
         subprocess.run(
             [sys.executable, str(agent_os_dir / "scripts" / "agent-runtime.py"), "runtime-migrate", "--db", str(agent_os_dir / "memory" / "index.db")],
             cwd=target,
@@ -119,6 +186,47 @@ def cmd_install(args: argparse.Namespace) -> int:
             text=True,
             capture_output=True,
         )
+    elif target.exists():
+        actions.append("skip local ignore update (dry run)")
+    print("\n".join(actions))
+    return 0
+
+
+def cmd_uninstall(args: argparse.Namespace) -> int:
+    target = args.target.resolve()
+    agent_os_dir = target / ".agent-os"
+    root_agents = target / "AGENTS.md"
+    actions: list[str] = []
+    if not target.exists():
+        print(f"Target directory does not exist: {target}", file=sys.stderr)
+        return 2
+    if args.dry_run:
+        actions.append("skip local ignore cleanup (dry run)")
+    else:
+        _, action = remove_managed_ignore_file(target)
+        actions.append(action)
+    if args.remove_root_agents:
+        actions.append(f"remove root AGENTS.md -> {root_agents}")
+        if not args.dry_run and root_agents.exists():
+            root_agents.unlink()
+    if agent_os_dir.exists():
+        actions.append(f"remove Agent OS directory -> {agent_os_dir}")
+        if not args.dry_run:
+            shutil.rmtree(agent_os_dir)
+    else:
+        actions.append(f"Agent OS directory not found -> {agent_os_dir}")
+    print("\n".join(actions))
+    return 0
+
+
+def cmd_ignore(args: argparse.Namespace) -> int:
+    target = args.target.resolve()
+    actions: list[str] = []
+    if not target.exists():
+        print(f"Target directory does not exist: {target}", file=sys.stderr)
+        return 2
+    _, action = update_managed_ignore_file(target, tuple(args.entries))
+    actions.append(action)
     print("\n".join(actions))
     return 0
 
@@ -153,6 +261,23 @@ def build_parser() -> argparse.ArgumentParser:
     install.add_argument("--force", action="store_true")
     install.add_argument("--dry-run", action="store_true")
     install.set_defaults(func=cmd_install)
+
+    uninstall = subparsers.add_parser("uninstall", help="Uninstall Agent OS from a user project")
+    uninstall.add_argument("--target", type=Path, required=True)
+    uninstall.add_argument("--remove-root-agents", action="store_true")
+    uninstall.add_argument("--dry-run", action="store_true")
+    uninstall.set_defaults(func=cmd_uninstall)
+
+    ignore = subparsers.add_parser("ignore", help="Configure local ignores for Agent OS files")
+    ignore.add_argument("--target", type=Path, required=True)
+    ignore.add_argument(
+        "--entries",
+        nargs="+",
+        default=list(GIT_EXCLUDE_ENTRIES),
+        help="Paths to ignore locally",
+    )
+    ignore.add_argument("--cleanup-gitignore", action="store_true")
+    ignore.set_defaults(func=cmd_ignore)
 
     return parser
 

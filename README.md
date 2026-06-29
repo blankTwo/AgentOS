@@ -93,8 +93,20 @@ runtime-release-check -> agent-os release-check
 | 复制到 `.agent-os/` | 简单项目或手动接入 | 覆盖 `.agent-os/` 后运行 doctor / migrate |
 | clone 为 `.agent-os` | 希望保留 Agent OS Git 历史 | 在 `.agent-os/` 内 `git pull` 后运行 doctor / migrate |
 | Git submodule / subtree | 团队多项目统一版本 | 更新指针或 subtree 后运行 doctor / migrate |
-| VSCode 插件注入 | 编辑器按钮安装或更新 | 插件写入 `.agent-os/` 和根 `AGENTS.md`，面板展示 doctor / dashboard / report |
+| VSCode 插件注入 | 编辑器按钮安装或更新 | 插件写入 `.agent-os/` 和根 `AGENTS.md`，面板展示状态与总览 |
 | 包管理器分发 | 未来产品化安装方式 | 包安装后仍以 `.agent-os/` 布局落地 |
+
+## VSCode 插件
+
+源码仓库内的 `vscode-plugin/` 是一个独立 VSCode 插件子项目。
+
+它负责：
+
+- `Agent OS: Inject Workspace`：把当前仓库安装成 Agent OS 工作区
+- `Agent OS: Refresh Status`：运行 doctor / runtime-summary / protocol 并刷新状态
+- `Agent OS: Open Overview`：生成并打开 `docs/agent-os/dashboard.html`
+
+插件面板只观察和触发 Agent OS 状态命令，不承载聊天运行时；核心规则、workflow、skills、memory 和 runtime 仍由 `.agent-os/` 提供。
 
 ## 项目文档边界
 

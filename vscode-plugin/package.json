@@ -1,0 +1,77 @@
+{
+  "name": "agent-os-vscode-plugin",
+  "displayName": "Agent OS",
+  "description": "VSCode plugin for Agent OS workspace injection and status inspection.",
+  "version": "0.1.9",
+  "publisher": "blankTwo",
+  "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/blankTwo/AgentOS.git",
+    "directory": "vscode-plugin"
+  },
+  "bugs": {
+    "url": "https://github.com/blankTwo/AgentOS/issues"
+  },
+  "homepage": "https://github.com/blankTwo/AgentOS#readme",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onView:agentOsStatus",
+    "onCommand:agentOs.injectWorkspace",
+    "onCommand:agentOs.uninstallWorkspace",
+    "onCommand:agentOs.refreshStatus",
+    "onCommand:agentOs.openOverview"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "agentOs.injectWorkspace",
+        "title": "Agent OS：注入当前工作区"
+      },
+      {
+        "command": "agentOs.uninstallWorkspace",
+        "title": "Agent OS：卸载当前工作区"
+      },
+      {
+        "command": "agentOs.refreshStatus",
+        "title": "Agent OS：刷新状态"
+      },
+      {
+        "command": "agentOs.openOverview",
+        "title": "Agent OS：打开总览"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "agentOsContainer",
+          "title": "Agent OS",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "agentOsContainer": [
+        {
+          "id": "agentOsStatus",
+          "name": "状态",
+          "type": "webview"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "prepare:agent-os": "node scripts/sync-agent-os.js",
+    "prepack": "npm run prepare:agent-os",
+    "check": "node -c extension.js && node scripts/sync-agent-os.js --dry-run",
+    "package": "npm run prepare:agent-os && npx @vscode/vsce package"
+  },
+  "devDependencies": {},
+  "license": "MIT"
+}
