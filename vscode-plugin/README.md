@@ -6,7 +6,7 @@ This package provides a lightweight VSCode entry point for Agent OS.
 
 - inject Agent OS into the current workspace
 - show installation and health status
-- surface dashboard and report artifacts
+- open the combined overview page
 - keep the panel as an observer, not a chat runtime
 
 ## Commands
@@ -14,18 +14,6 @@ This package provides a lightweight VSCode entry point for Agent OS.
 - `Agent OS: Inject Workspace`
 - `Agent OS: Refresh Status`
 - `Agent OS: Open Overview`
-
-## Development
-
-```bash
-npm run check
-npm run prepare:agent-os
-npm run package
-```
-
-`prepare:agent-os` copies the Agent OS core into `vscode-plugin/agent-os/` for extension packaging. That generated directory is ignored by Git.
-
-`npm run package` creates a local `.vsix` package. The generated VSIX is ignored by Git.
 
 ## Notes
 
