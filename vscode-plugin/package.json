@@ -2,7 +2,7 @@
   "name": "agent-os-vscode-plugin",
   "displayName": "Agent OS",
   "description": "用于将 Agent OS 注入工作区并查看状态的 VSCode 插件。",
-  "version": "0.1.10",
+  "version": "1.0.0",
   "publisher": "blankTwo",
   "icon": "media/icon.png",
   "repository": {
