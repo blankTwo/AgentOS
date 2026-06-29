@@ -1,8 +1,8 @@
 {
   "name": "agent-os-vscode-plugin",
   "displayName": "Agent OS",
-  "description": "VSCode plugin for Agent OS workspace injection and status inspection.",
-  "version": "0.1.9",
+  "description": "用于将 Agent OS 注入工作区并查看状态的 VSCode 插件。",
+  "version": "0.1.10",
   "publisher": "blankTwo",
   "icon": "media/icon.png",
   "repository": {

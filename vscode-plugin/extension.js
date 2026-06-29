@@ -306,6 +306,10 @@ function renderStatusHtml(status) {
     <script>
       const vscode = acquireVsCodeApi();
       const notice = document.getElementById("notice");
+      function updateButtonBusyState(button, busy) {
+        button.disabled = busy;
+        button.textContent = busy ? (button.dataset.busy || "处理中...") : button.dataset.original;
+      }
       document.querySelectorAll("button[data-command]").forEach((button) => {
         button.dataset.original = button.textContent;
         button.addEventListener("click", () => {
