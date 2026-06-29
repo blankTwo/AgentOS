@@ -69,7 +69,7 @@
   "scripts": {
     "prepare:agent-os": "node scripts/sync-agent-os.js",
     "prepack": "npm run prepare:agent-os",
-    "check": "node -c extension.js && node scripts/sync-agent-os.js --dry-run",
+    "check": "node -c extension.js && node -c runtime/local-runtime.js && node scripts/sync-agent-os.js --dry-run",
     "package": "npm run prepare:agent-os && npx @vscode/vsce package"
   },
   "devDependencies": {},

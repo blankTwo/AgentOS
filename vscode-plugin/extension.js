@@ -4,9 +4,12 @@ const fs = require("fs");
 const path = require("path");
 const cp = require("child_process");
 const vscode = require("vscode");
+const localRuntime = require("./runtime/local-runtime");
+const pythonRuntime = require("./runtime/python-runtime");
 
 let outputChannel;
 let statusProvider;
+let runtimeMode = "python";
 
 function workspaceRoot() {
   const folder = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
@@ -48,6 +51,10 @@ function fileExists(filePath) {
   }
 }
 
+function workspaceAgentOsDir(root) {
+  return path.join(root, ".agent-os");
+}
+
 function spawnPython(executable, args, cwd) {
   return new Promise((resolve, reject) => {
     const child = cp.spawn(executable, args, {
@@ -68,6 +75,49 @@ function spawnPython(executable, args, cwd) {
   });
 }
 
+async function detectPython() {
+  for (const executable of ["python3", "python"]) {
+    try {
+      const result = await spawnPython(executable, ["--version"], process.cwd());
+      if (result.code === 0) {
+        return executable;
+      }
+    } catch {
+      // Try next interpreter.
+    }
+  }
+  return null;
+}
+
+async function resolvePythonRunner(context) {
+  const systemPython = await detectPython();
+  if (systemPython) {
+    return {
+      mode: "python-system",
+      run(args, cwd) {
+        return spawnPython(systemPython, args, cwd);
+      },
+    };
+  }
+  const bundledPython = await pythonRuntime.ensureRuntime(context.extensionPath);
+  if (bundledPython) {
+    return {
+      mode: "python-bundled",
+      run(args, cwd) {
+        return pythonRuntime.runPython(context.extensionPath, args, cwd);
+      },
+    };
+  }
+  return null;
+}
+
+function localRuntimeContext(context, root) {
+  return {
+    extensionPath: context.extensionPath,
+    workspaceRoot: root,
+  };
+}
+
 async function runPython(args, cwd) {
   const executables = ["python3", "python"];
   let lastError = null;
@@ -85,8 +135,8 @@ async function runPython(args, cwd) {
   throw lastError || new Error("Unable to locate a Python interpreter.");
 }
 
-async function readJson(args, cwd) {
-  const result = await runPython(args, cwd);
+async function readJsonWithRunner(pythonRunner, args, cwd) {
+  const result = await pythonRunner.run(args, cwd);
   if (result.code !== 0) {
     throw new Error(result.stderr || `python exited with code ${result.code}`);
   }
@@ -101,8 +151,16 @@ async function installWorkspace(context) {
   }
   const rootAgents = path.join(root, "AGENTS.md");
   const hadRootAgents = fileExists(rootAgents);
-  const installer = coreScript(context);
-  const result = await runPython([installer, "install", "--target", root, "--force"], repoRoot(context));
+  const pythonRunner = await resolvePythonRunner(context);
+  let result;
+  if (pythonRunner) {
+    runtimeMode = pythonRunner.mode;
+    const installer = coreScript(context);
+    result = await pythonRunner.run([installer, "install", "--target", root, "--force"], repoRoot(context));
+  } else {
+    runtimeMode = "local-js";
+    result = localRuntime.install(localRuntimeContext(context, root), { force: true });
+  }
   if (result.code !== 0) {
     vscode.window.showErrorMessage("Agent OS injection failed. Check the Output panel.");
     const channel = getOutputChannel(context);
@@ -114,6 +172,7 @@ async function installWorkspace(context) {
     installedBy: "agent-os-vscode-plugin",
     rootAgentsCreated: !hadRootAgents,
     installedAt: new Date().toISOString(),
+    runtimeMode,
   };
   fs.writeFileSync(installMetaPath(root), JSON.stringify(meta, null, 2), "utf-8");
   vscode.window.showInformationMessage("Agent OS workspace injected.");
@@ -159,8 +218,8 @@ async function uninstallWorkspace(context) {
     vscode.window.showInformationMessage("当前工作区尚未安装 Agent OS。");
     return;
   }
-  const meta = readInstallMeta(root);
-  const shouldRemoveRootAgents = meta.rootAgentsCreated === true && rootAgentsLooksGenerated(root);
+  const installMeta = readInstallMeta(root);
+  const shouldRemoveRootAgents = installMeta.rootAgentsCreated === true && rootAgentsLooksGenerated(root);
   const rootAgentsNote = shouldRemoveRootAgents
     ? "会同时删除本插件创建的根目录 AGENTS.md。"
     : "根目录 AGENTS.md 会保留。";
@@ -172,12 +231,25 @@ async function uninstallWorkspace(context) {
   if (confirmed !== "确认卸载") {
     return;
   }
-  const installer = coreScript(context);
-  const args = ["uninstall", "--target", root];
-  if (shouldRemoveRootAgents) {
-    args.push("--remove-root-agents");
+  let result;
+  if (installMeta.runtimeMode === "local-js") {
+    runtimeMode = "local-js";
+    result = localRuntime.uninstall(localRuntimeContext(context, root), { removeRootAgents: shouldRemoveRootAgents });
+  } else {
+    const pythonRunner = await resolvePythonRunner(context);
+    if (pythonRunner) {
+      runtimeMode = pythonRunner.mode;
+      const installer = coreScript(context);
+      const args = ["uninstall", "--target", root];
+      if (shouldRemoveRootAgents) {
+        args.push("--remove-root-agents");
+      }
+      result = await pythonRunner.run([installer, ...args], repoRoot(context));
+    } else {
+      runtimeMode = "local-js";
+      result = localRuntime.uninstall(localRuntimeContext(context, root), { removeRootAgents: shouldRemoveRootAgents });
+    }
   }
-  const result = await runPython([installer, ...args], repoRoot(context));
   if (result.code !== 0) {
     vscode.window.showErrorMessage("Agent OS 卸载失败。请查看 Output 面板。");
     const channel = getOutputChannel(context);
@@ -217,22 +289,94 @@ async function loadStatus(context) {
     doctor: null,
     dashboard: null,
     protocol: null,
+    runtimeMode: readInstallMeta(root).runtimeMode || runtimeMode,
   };
   if (!installed) {
     return status;
   }
-  const doctor = await safeReadJson([agentOsScript(root), "doctor", "--root", path.join(root, ".agent-os")], root);
-  const summary = await safeReadJson([runtimeScript(root), "runtime-summary", "--project", status.project, "--limit", "5"], root);
+  if (status.runtimeMode === "local-js") {
+    const local = localRuntime.detect(localRuntimeContext(context, root));
+    return {
+      ...status,
+      ...local,
+      doctor: { ok: true, mode: "local-js", checks: [] },
+      summary: { ok: true, mode: "local-js", recent_goals: [], recent_tasks: [], recent_events: [] },
+      protocol: { ok: true, mode: "local-js", commands: {} },
+    };
+  }
+  const pythonRunner = await resolvePythonRunner(context);
+  if (!pythonRunner) {
+    return {
+      ...status,
+      runtimeMode: "local-js",
+      doctor: { ok: true, mode: "local-js", checks: [] },
+      summary: { ok: true, mode: "local-js", recent_goals: [], recent_tasks: [], recent_events: [] },
+      protocol: { ok: true, mode: "local-js", commands: {} },
+    };
+  }
+  const doctor = await safeReadJson(
+    pythonRunner,
+    [agentOsScript(root), "doctor", "--root", path.join(root, ".agent-os")],
+    root,
+  );
+  const summary = await safeReadJson(
+    pythonRunner,
+    [runtimeScript(root), "runtime-summary", "--project", status.project, "--limit", "5"],
+    root,
+  );
   const protocol = await safeReadJson(
+    pythonRunner,
     [agentOsScript(root), "vscode-protocol", "--project", status.project],
     root,
   );
   return { ...status, doctor, summary, protocol };
 }
 
-async function safeReadJson(args, cwd) {
+function buildLocalOverviewHtml(status) {
+  const headline = status.installed ? "Agent OS 已安装" : "Agent OS 未安装";
+  const runtimeLabel = status.runtimeMode === "local-js" ? "内置运行时" : "Python 运行时";
+  const agentOsPath = escapeHtml(status.agentOsDir || path.join(status.root || "", ".agent-os"));
+  return `<!doctype html>
+  <html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Agent OS 总览</title>
+    <style>
+      body { font-family: var(--vscode-font-family); margin: 0; padding: 24px; background: var(--vscode-editor-background); color: var(--vscode-editor-foreground); }
+      .card { border: 1px solid var(--vscode-panel-border); border-radius: 8px; padding: 16px; background: var(--vscode-sideBar-background); max-width: 880px; }
+      h1 { font-size: 20px; margin: 0 0 12px; }
+      p { margin: 8px 0; }
+      code { background: var(--vscode-textCodeBlock-background); padding: 2px 6px; border-radius: 6px; }
+      .muted { color: var(--vscode-descriptionForeground); }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>${headline}</h1>
+      <p>工作区：<code>${escapeHtml(status.root || "")}</code></p>
+      <p>运行模式：<code>${escapeHtml(runtimeLabel)}</code></p>
+      <p>Agent OS 目录：<code>${agentOsPath}</code></p>
+      <p class="muted">这是内置兜底总览页，当前环境没有 Python 时也可以打开。</p>
+    </div>
+  </body>
+  </html>`;
+}
+
+async function ensureOverviewFiles(context, root) {
+  const docsDir = path.join(root, "docs", "agent-os");
+  const dashboard = path.join(docsDir, "dashboard.html");
+  const report = path.join(docsDir, "dashboard.json");
+  const status = await loadStatus(context);
+  fs.mkdirSync(docsDir, { recursive: true });
+  fs.writeFileSync(dashboard, buildLocalOverviewHtml(status), "utf-8");
+  fs.writeFileSync(report, JSON.stringify(status, null, 2), "utf-8");
+  return { dashboard, report };
+}
+
+async function safeReadJson(pythonRunner, args, cwd) {
   try {
-    return await readJson(args, cwd);
+    return await readJsonWithRunner(pythonRunner, args, cwd);
   } catch (error) {
     return {
       ok: false,
@@ -437,25 +581,37 @@ function registerCommands(context) {
       if (!root) {
         return;
       }
-      const dashboard = path.join(root, "docs", "agent-os", "dashboard.html");
       if (!fileExists(agentOsScript(root))) {
         vscode.window.showWarningMessage("当前工作区尚未安装 Agent OS。");
         return;
       }
-      if (!fileExists(dashboard)) {
-        await readJson(
-          [
-            agentOsScript(root),
-            "dashboard",
-            "--project",
-            path.basename(root),
-            "--output",
-            dashboard,
-            "--data-output",
-            path.join(root, "docs", "agent-os", "dashboard.json"),
-          ],
-          root,
-        );
+      const meta = readInstallMeta(root);
+      const localMode = meta.runtimeMode === "local-js";
+      const { dashboard } = localMode
+        ? await ensureOverviewFiles(context, root)
+        : { dashboard: path.join(root, "docs", "agent-os", "dashboard.html") };
+      if (!localMode && !fileExists(dashboard)) {
+        const pythonRunner = await resolvePythonRunner(context);
+        if (pythonRunner) {
+          await readJsonWithRunner(
+            pythonRunner,
+            [
+              agentOsScript(root),
+              "dashboard",
+              "--project",
+              path.basename(root),
+              "--output",
+              dashboard,
+              "--data-output",
+              path.join(root, "docs", "agent-os", "dashboard.json"),
+            ],
+            root,
+          );
+        }
+      }
+      if (localMode) {
+        await vscode.env.openExternal(vscode.Uri.file(dashboard));
+        return;
       }
       if (fileExists(dashboard)) {
         await vscode.env.openExternal(vscode.Uri.file(dashboard));
@@ -472,21 +628,36 @@ function registerCommands(context) {
         vscode.window.showWarningMessage("当前工作区尚未安装 Agent OS。");
         return;
       }
-      const dashboard = path.join(root, "docs", "agent-os", "dashboard.html");
-      if (!fileExists(dashboard)) {
-        await readJson(
-          [
-            agentOsScript(root),
-            "dashboard",
-            "--project",
-            path.basename(root),
-            "--output",
-            dashboard,
-            "--data-output",
-            path.join(root, "docs", "agent-os", "dashboard.json"),
-          ],
-          root,
-        );
+      const meta = readInstallMeta(root);
+      const localMode = meta.runtimeMode === "local-js";
+      const { dashboard, report } = localMode
+        ? await ensureOverviewFiles(context, root)
+        : {
+            dashboard: path.join(root, "docs", "agent-os", "dashboard.html"),
+            report: path.join(root, "docs", "agent-os", "dashboard.json"),
+          };
+      if (!localMode && !fileExists(dashboard)) {
+        const pythonRunner = await resolvePythonRunner(context);
+        if (pythonRunner) {
+          await readJsonWithRunner(
+            pythonRunner,
+            [
+              agentOsScript(root),
+              "dashboard",
+              "--project",
+              path.basename(root),
+              "--output",
+              dashboard,
+              "--data-output",
+              report,
+            ],
+            root,
+          );
+        }
+      }
+      if (localMode) {
+        await vscode.env.openExternal(vscode.Uri.file(dashboard));
+        return;
       }
       if (fileExists(dashboard)) {
         await vscode.env.openExternal(vscode.Uri.file(dashboard));
