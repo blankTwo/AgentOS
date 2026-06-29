@@ -1,5 +1,6 @@
 ---
 name: write-tests
+version: 1.0.0
 description: Use to add tests for existing logic or create regression coverage for new behavior.
 ---
 

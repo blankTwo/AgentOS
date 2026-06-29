@@ -1,5 +1,6 @@
 ---
 name: api-change
+version: 1.0.0
 description: Use for API Layer changes, including endpoints, request parameters, response structures, authentication, error handling, service logic, data writes, and frontend/backend contracts.
 ---
 

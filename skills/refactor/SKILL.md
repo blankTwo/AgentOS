@@ -1,5 +1,6 @@
 ---
 name: refactor
+version: 1.0.0
 description: Use to improve structure, readability, reuse, responsibility boundaries, and maintainability without changing external behavior.
 ---
 

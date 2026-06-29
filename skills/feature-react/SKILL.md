@@ -1,12 +1,13 @@
 ---
 name: feature-react
+version: 1.0.0
 description: Use as an implementation helper for confirmed React projects. It turns UI, API, state, and interaction requirements into code that follows the current React project patterns. Applies to React pages, components, hooks, stores, request flows, or implementation handoff from `feature-ui`. This skill is a React helper, not a template for creating stack-specific skills for every framework.
 ---
 
 # Goal
 Implement React code that fits the current project instead of introducing a new local architecture.
 
-# Scope
+# When to Use
 Use for:
 - React pages and components.
 - Hooks, stores, and local state.

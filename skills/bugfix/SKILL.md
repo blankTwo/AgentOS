@@ -1,5 +1,6 @@
 ---
 name: bugfix
+version: 1.0.0
 description: Use to diagnose and fix errors, abnormal behavior, failed edge cases, inconsistent state, and regressions.
 ---
 

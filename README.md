@@ -242,6 +242,69 @@ your-project/
 
 如果 `.agent-os/` 本身是一个独立 Git 仓库，请根据你的团队策略决定是否把它作为 submodule、subtree，或直接加入目标项目版本管理。
 
+### 安装、升级与分发策略
+
+推荐接入方式按稳定性排序：
+
+| 方式 | 适用场景 | 升级方式 |
+| --- | --- | --- |
+| 复制到 `.agent-os/` | 单项目、快速接入、无需保留 Agent OS Git 历史 | 覆盖 `.agent-os/` 后运行 doctor / migrate |
+| clone 为 `.agent-os` | 希望在目标项目内独立管理 Agent OS 版本 | 在 `.agent-os/` 内 `git pull` 后运行 doctor / migrate |
+| Git submodule / subtree | 团队多项目统一版本 | 由团队统一更新指针或 subtree，再运行 doctor / migrate |
+| VSCode 插件注入 | 希望通过编辑器按钮安装或更新 | 插件负责写入 `.agent-os/`、根 `AGENTS.md`，面板展示 doctor / dashboard / report |
+| 包管理器分发 | 未来产品化安装方式 | 包安装后仍以 `.agent-os/` 布局落地，并运行 doctor / migrate |
+
+安装或升级后建议执行：
+
+```bash
+python .agent-os/scripts/agent-runtime.py runtime-doctor
+python .agent-os/scripts/agent-runtime.py runtime-version
+python .agent-os/scripts/agent-runtime.py runtime-migrate --dry-run
+python .agent-os/scripts/agent-runtime.py runtime-migrate
+```
+
+常用可观测命令：
+
+```bash
+python .agent-os/scripts/agent-os.py dashboard --project my-project --data-output docs/agent-os/dashboard.json
+python .agent-os/scripts/agent-os.py quality-trends --project my-project --output docs/agent-os/quality-trends.json
+python .agent-os/scripts/agent-os.py policy-packs
+python .agent-os/scripts/agent-os.py security-check --output docs/agent-os/security-report.json
+python .agent-os/scripts/agent-os.py vscode-protocol --project my-project --output docs/agent-os/vscode-protocol.json
+python .agent-os/scripts/agent-os.py distribution
+python .agent-os/scripts/agent-os.py team-workspace
+python .agent-os/scripts/agent-os.py release-check
+```
+
+团队策略包常用命令：
+
+```bash
+python .agent-os/scripts/agent-os.py policy-packs --name core-governance --action enable
+python .agent-os/scripts/agent-os.py policy-packs --name core-governance --action disable
+python .agent-os/scripts/agent-os.py policy-packs --name core-governance --action enable --override review=required
+```
+
+底层 Runtime 命令与产品 CLI alias 对应：
+
+```text
+runtime-dashboard -> agent-os dashboard
+runtime-quality-trends -> agent-os quality-trends
+runtime-policy-packs -> agent-os policy-packs
+runtime-security-check -> agent-os security-check
+runtime-vscode-protocol -> agent-os vscode-protocol
+runtime-distribution -> agent-os distribution
+runtime-team-workspace -> agent-os team-workspace
+runtime-release-check -> agent-os release-check
+```
+
+升级边界：
+
+- `.agent-os/` 保存 Agent OS 系统文件，升级时可以被替换或拉取更新。
+- 根目录 `AGENTS.md` 是用户项目入口，升级时不要自动覆盖，除非用户明确确认。
+- `docs/agent-os/` 是用户项目执行文档，升级 Agent OS 时不要删除或迁移到 `.agent-os/`。
+- `memory/index.db` 是本地运行态，不提交；升级后由 `runtime-migrate` 安全补齐 schema。
+- `memory/projects/{project}.md` 是项目长期记忆，升级时应保留。
+
 ### 使用后会发生什么
 
 - `AGENTS.md` 作为总控入口，先识别项目、技术栈、任务层，再选择对应 skill

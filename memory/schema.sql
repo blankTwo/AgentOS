@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS schema_meta (
 );
 
 INSERT INTO schema_meta(key, value)
-VALUES ('schema_version', '4')
+VALUES ('schema_version', '15')
 ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now');
 
 CREATE TABLE IF NOT EXISTS memory_items (
@@ -471,6 +471,240 @@ CREATE INDEX IF NOT EXISTS idx_verification_runs_project ON verification_runs(pr
 CREATE INDEX IF NOT EXISTS idx_verification_runs_goal ON verification_runs(goal_id);
 CREATE INDEX IF NOT EXISTS idx_verification_runs_result ON verification_runs(result);
 
+CREATE TABLE IF NOT EXISTS tool_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project TEXT NOT NULL,
+    goal_id TEXT,
+    run_id TEXT,
+    task_id TEXT,
+    tool_type TEXT NOT NULL CHECK (tool_type IN (
+        'shell',
+        'git',
+        'api',
+        'browser'
+    )),
+    adapter TEXT NOT NULL,
+    command TEXT,
+    target TEXT,
+    status TEXT NOT NULL CHECK (status IN (
+        'passed',
+        'failed',
+        'blocked',
+        'not-run'
+    )),
+    exit_code INTEGER,
+    duration_ms INTEGER,
+    stdout_summary TEXT,
+    failure_type TEXT CHECK (failure_type IN (
+        'implementation',
+        'test',
+        'environment',
+        'requirement',
+        'unknown'
+    )),
+    failure_detail TEXT,
+    evidence TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY(goal_id) REFERENCES agent_goals(id) ON DELETE SET NULL,
+    FOREIGN KEY(task_id) REFERENCES agent_tasks(id) ON DELETE SET NULL,
+    FOREIGN KEY(run_id) REFERENCES runtime_runs(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_tool_runs_project ON tool_runs(project);
+CREATE INDEX IF NOT EXISTS idx_tool_runs_goal ON tool_runs(goal_id);
+CREATE INDEX IF NOT EXISTS idx_tool_runs_run ON tool_runs(run_id);
+CREATE INDEX IF NOT EXISTS idx_tool_runs_tool_type ON tool_runs(tool_type);
+CREATE INDEX IF NOT EXISTS idx_tool_runs_status ON tool_runs(status);
+
+CREATE TABLE IF NOT EXISTS model_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project TEXT NOT NULL,
+    goal_id TEXT,
+    run_id TEXT,
+    task_id TEXT,
+    provider TEXT NOT NULL CHECK (provider IN (
+        'openai',
+        'anthropic',
+        'google',
+        'qwen',
+        'deepseek',
+        'local',
+        'mock',
+        'custom'
+    )),
+    model_name TEXT NOT NULL,
+    adapter TEXT NOT NULL,
+    operation TEXT NOT NULL DEFAULT 'inference' CHECK (operation IN (
+        'inference',
+        'planning',
+        'review',
+        'embedding',
+        'rerank',
+        'tool-call'
+    )),
+    status TEXT NOT NULL CHECK (status IN (
+        'passed',
+        'failed',
+        'blocked',
+        'not-run'
+    )),
+    duration_ms INTEGER,
+    input_tokens INTEGER,
+    output_tokens INTEGER,
+    cost_estimate REAL,
+    prompt_summary TEXT,
+    response_summary TEXT,
+    failure_type TEXT CHECK (failure_type IN (
+        'implementation',
+        'test',
+        'environment',
+        'requirement',
+        'unknown'
+    )),
+    failure_detail TEXT,
+    evidence TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY(goal_id) REFERENCES agent_goals(id) ON DELETE SET NULL,
+    FOREIGN KEY(run_id) REFERENCES runtime_runs(id) ON DELETE SET NULL,
+    FOREIGN KEY(task_id) REFERENCES agent_tasks(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_model_runs_project ON model_runs(project);
+CREATE INDEX IF NOT EXISTS idx_model_runs_goal ON model_runs(goal_id);
+CREATE INDEX IF NOT EXISTS idx_model_runs_run ON model_runs(run_id);
+CREATE INDEX IF NOT EXISTS idx_model_runs_provider ON model_runs(provider);
+CREATE INDEX IF NOT EXISTS idx_model_runs_status ON model_runs(status);
+
+CREATE TABLE IF NOT EXISTS subagent_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project TEXT NOT NULL,
+    goal_id TEXT,
+    run_id TEXT,
+    task_id TEXT,
+    role TEXT NOT NULL CHECK (role IN (
+        'planner',
+        'executor',
+        'reviewer',
+        'verifier',
+        'memory-recorder'
+    )),
+    status TEXT NOT NULL CHECK (status IN (
+        'planned',
+        'running',
+        'completed',
+        'blocked',
+        'failed'
+    )),
+    input_summary TEXT NOT NULL,
+    output_summary TEXT,
+    boundary TEXT NOT NULL,
+    handoff_to TEXT CHECK (handoff_to IN (
+        'planner',
+        'executor',
+        'reviewer',
+        'verifier',
+        'memory-recorder'
+    )),
+    failure_type TEXT CHECK (failure_type IN (
+        'implementation',
+        'test',
+        'environment',
+        'requirement',
+        'unknown'
+    )),
+    evidence TEXT,
+    started_at TEXT,
+    completed_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY(goal_id) REFERENCES agent_goals(id) ON DELETE SET NULL,
+    FOREIGN KEY(run_id) REFERENCES runtime_runs(id) ON DELETE SET NULL,
+    FOREIGN KEY(task_id) REFERENCES agent_tasks(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_subagent_runs_project ON subagent_runs(project);
+CREATE INDEX IF NOT EXISTS idx_subagent_runs_goal ON subagent_runs(goal_id);
+CREATE INDEX IF NOT EXISTS idx_subagent_runs_run ON subagent_runs(run_id);
+CREATE INDEX IF NOT EXISTS idx_subagent_runs_role ON subagent_runs(role);
+CREATE INDEX IF NOT EXISTS idx_subagent_runs_status ON subagent_runs(status);
+
+CREATE TABLE IF NOT EXISTS host_adapters (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project TEXT NOT NULL,
+    host_type TEXT NOT NULL CHECK (host_type IN (
+        'codex',
+        'claude',
+        'cursor',
+        'vscode',
+        'cli',
+        'mcp',
+        'custom'
+    )),
+    adapter_name TEXT NOT NULL,
+    entrypoint TEXT,
+    capabilities_json TEXT,
+    config_path TEXT,
+    status TEXT NOT NULL DEFAULT 'available' CHECK (status IN (
+        'available',
+        'missing',
+        'disabled',
+        'invalid'
+    )),
+    issues_json TEXT,
+    evidence TEXT,
+    registered_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(project, host_type, adapter_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_host_adapters_project ON host_adapters(project);
+CREATE INDEX IF NOT EXISTS idx_host_adapters_host_type ON host_adapters(host_type);
+CREATE INDEX IF NOT EXISTS idx_host_adapters_status ON host_adapters(status);
+
+CREATE TABLE IF NOT EXISTS runtime_metrics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project TEXT NOT NULL,
+    goal_id TEXT,
+    run_id TEXT,
+    scope TEXT NOT NULL DEFAULT 'project' CHECK (scope IN (
+        'project',
+        'goal',
+        'run'
+    )),
+    tool_call_count INTEGER NOT NULL DEFAULT 0,
+    model_call_count INTEGER NOT NULL DEFAULT 0,
+    verification_count INTEGER NOT NULL DEFAULT 0,
+    failure_count INTEGER NOT NULL DEFAULT 0,
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    avg_duration_ms REAL,
+    verification_pass_rate REAL,
+    failure_rate REAL,
+    metrics_json TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY(goal_id) REFERENCES agent_goals(id) ON DELETE SET NULL,
+    FOREIGN KEY(run_id) REFERENCES runtime_runs(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_runtime_metrics_project ON runtime_metrics(project);
+CREATE INDEX IF NOT EXISTS idx_runtime_metrics_goal ON runtime_metrics(goal_id);
+CREATE INDEX IF NOT EXISTS idx_runtime_metrics_run ON runtime_metrics(run_id);
+CREATE INDEX IF NOT EXISTS idx_runtime_metrics_created_at ON runtime_metrics(created_at);
+
+CREATE TABLE IF NOT EXISTS runtime_traces (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project TEXT NOT NULL,
+    goal_id TEXT,
+    run_id TEXT,
+    trace_json TEXT NOT NULL,
+    exported_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY(goal_id) REFERENCES agent_goals(id) ON DELETE SET NULL,
+    FOREIGN KEY(run_id) REFERENCES runtime_runs(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_runtime_traces_project ON runtime_traces(project);
+CREATE INDEX IF NOT EXISTS idx_runtime_traces_goal ON runtime_traces(goal_id);
+CREATE INDEX IF NOT EXISTS idx_runtime_traces_run ON runtime_traces(run_id);
+CREATE INDEX IF NOT EXISTS idx_runtime_traces_exported_at ON runtime_traces(exported_at);
+
 CREATE TABLE IF NOT EXISTS recovery_points (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     project TEXT NOT NULL,
@@ -529,6 +763,31 @@ CREATE TABLE IF NOT EXISTS improvement_reviews (
 
 CREATE INDEX IF NOT EXISTS idx_improvement_reviews_project ON improvement_reviews(project);
 CREATE INDEX IF NOT EXISTS idx_improvement_reviews_status ON improvement_reviews(status);
+
+CREATE TABLE IF NOT EXISTS reflections (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project TEXT NOT NULL,
+    goal_id TEXT,
+    run_id TEXT,
+    source_type TEXT NOT NULL CHECK (source_type IN (
+        'failure',
+        'success',
+        'partial',
+        'manual'
+    )),
+    root_cause TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    evidence TEXT,
+    pattern TEXT,
+    next_step TEXT,
+    confidence REAL NOT NULL DEFAULT 0.7 CHECK (confidence >= 0 AND confidence <= 1),
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_reflections_project ON reflections(project);
+CREATE INDEX IF NOT EXISTS idx_reflections_goal ON reflections(goal_id);
+CREATE INDEX IF NOT EXISTS idx_reflections_run ON reflections(run_id);
+CREATE INDEX IF NOT EXISTS idx_reflections_source_type ON reflections(source_type);
 
 CREATE TABLE IF NOT EXISTS runtime_contexts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -607,3 +866,87 @@ CREATE TABLE IF NOT EXISTS skill_recommendations (
 
 CREATE INDEX IF NOT EXISTS idx_skill_recommendations_project ON skill_recommendations(project);
 CREATE INDEX IF NOT EXISTS idx_skill_recommendations_skill ON skill_recommendations(skill_name);
+
+CREATE TABLE IF NOT EXISTS skill_manifests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project TEXT NOT NULL,
+    goal_id TEXT,
+    run_id TEXT,
+    skill_name TEXT NOT NULL,
+    version TEXT,
+    description TEXT,
+    path TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN (
+        'valid',
+        'invalid',
+        'missing'
+    )),
+    dependencies_json TEXT,
+    triggers_json TEXT,
+    conflicts_json TEXT,
+    issues_json TEXT,
+    warnings_json TEXT,
+    validated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY(goal_id) REFERENCES agent_goals(id) ON DELETE SET NULL,
+    FOREIGN KEY(run_id) REFERENCES runtime_runs(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_skill_manifests_project ON skill_manifests(project);
+CREATE INDEX IF NOT EXISTS idx_skill_manifests_goal ON skill_manifests(goal_id);
+CREATE INDEX IF NOT EXISTS idx_skill_manifests_run ON skill_manifests(run_id);
+CREATE INDEX IF NOT EXISTS idx_skill_manifests_skill ON skill_manifests(skill_name);
+CREATE INDEX IF NOT EXISTS idx_skill_manifests_status ON skill_manifests(status);
+
+CREATE TABLE IF NOT EXISTS agent_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project TEXT NOT NULL,
+    run_id TEXT,
+    goal_id TEXT,
+    task_id TEXT,
+    event_type TEXT NOT NULL CHECK (event_type IN (
+        'UserRequest',
+        'ContextReady',
+        'GoalCreated',
+        'RunCreated',
+        'TaskPlanned',
+        'TaskStarted',
+        'TaskCompleted',
+        'GoalStateChanged',
+        'TaskStateChanged',
+        'RunStateChanged',
+        'VerificationPlanned',
+        'VerificationPassed',
+        'VerificationFailed',
+        'DocumentationChecked',
+        'MemoryUpdated',
+        'KernelStep',
+        'Blocked',
+        'Recovered',
+        'RecoveryPlanned',
+        'RecoveryCheckpointCreated',
+        'RecoveryMarked',
+        'SkillValidated',
+        'ModelRunRecorded',
+        'SubAgentRunRecorded',
+        'AdapterRegistered',
+        'MetricsRecorded',
+        'TraceExported'
+    )),
+    source TEXT NOT NULL DEFAULT 'runtime',
+    summary TEXT NOT NULL,
+    payload_json TEXT,
+    severity TEXT NOT NULL DEFAULT 'info' CHECK (severity IN (
+        'info',
+        'warning',
+        'error',
+        'critical'
+    )),
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_events_project ON agent_events(project);
+CREATE INDEX IF NOT EXISTS idx_agent_events_goal ON agent_events(goal_id);
+CREATE INDEX IF NOT EXISTS idx_agent_events_run ON agent_events(run_id);
+CREATE INDEX IF NOT EXISTS idx_agent_events_type ON agent_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_agent_events_created_at ON agent_events(created_at);

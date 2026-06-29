@@ -1,0 +1,27 @@
+{
+  "name": "core-governance",
+  "version": "1.0.0",
+  "description": "Reusable Agent OS governance policy pack for planning, testing, review, memory, and runtime discipline.",
+  "rules": [
+    "rules/change-policy.md",
+    "rules/testing.md",
+    "rules/review-gate.md",
+    "rules/memory-enhanced.md",
+    "rules/agent-runtime.md",
+    "rules/security-hardening.md"
+  ],
+  "workflows": [
+    "workflows/agent-os-evolution.md",
+    "workflows/feature-implementation.md",
+    "workflows/bug-diagnosis.md"
+  ],
+  "gates": [
+    "Context Gate",
+    "Workflow Gate",
+    "Risk Gate",
+    "Planning Gate",
+    "Validation Gate",
+    "Documentation Gate",
+    "Memory Gate"
+  ]
+}

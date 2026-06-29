@@ -1,12 +1,13 @@
 ---
 name: feature-ui
+version: 1.0.0
 description: Use to design a production-grade feature-level or page-level UI from zero to one. Applies to new pages, lists, forms, detail pages, dashboards, initial project UI, and complete UI structure for an existing feature. This skill defines cross-framework product UI quality; it does not bind implementation to React, Vue, Taro, or any component library.
 ---
 
 # Goal
 Create complete, product-ready UI structure with clear hierarchy, state coverage, interaction design, platform fit, and design-system alignment.
 
-# Scope
+# When to Use
 Use for:
 - new pages
 - feature-level UI
@@ -25,7 +26,7 @@ Do not use for:
 - Pair with `api-change` when UI requires new or changed API contracts.
 - Pair with `write-tests` when UI behavior needs regression protection.
 
-# Workflow
+# Steps
 1. Identify product type and primary user task.
 2. Inspect existing pages, components, tokens, and layout conventions.
 3. Define the first-screen goal and information priority.
