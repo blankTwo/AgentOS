@@ -81,6 +81,8 @@ If the file does not exist:
 - Creating project memory is allowed.
 - Creating project-local AGENTS/rules/skills is not allowed unless the user explicitly asks.
 
+When working inside the Agent OS source repository itself, do not create source-tracked project memory for the source checkout unless the user explicitly asks. Use SQLite local runtime records or temporary notes for source-maintenance sessions instead.
+
 ---
 
 ## Stack Detection

@@ -94,7 +94,7 @@ class AgentRuntimeCliTests(unittest.TestCase):
     def test_distribution_strategy_is_documented(self) -> None:
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         required_terms = [
-            "安装、升级与分发策略",
+            "安装与分发",
             "复制到 `.agent-os/`",
             "clone 为 `.agent-os`",
             "Git submodule / subtree",
