@@ -16,7 +16,7 @@ Runtime records also do not replace durable project execution documents. When a 
 
 Do not write project execution documents under `.agent-os/`.
 
-Runtime records also do not replace Documentation Gate. If runtime activity changes user-facing setup, usage, commands, contracts, validation, troubleshooting, or Agent OS behavior, update README/docs/tool docs/templates/tests or state why no documentation update is needed before final response.
+Runtime records also do not replace Documentation Gate. If runtime activity changes user-facing setup, usage, commands, contracts, validation, troubleshooting, or Agent OS behavior, update README/docs/tool docs/installer bootstrap/tests or state why no documentation update is needed before final response.
 
 ---
 

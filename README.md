@@ -176,7 +176,7 @@ your-project/
 
 1. 在目标项目根目录创建 `.agent-os/`。
 2. 将本仓库的全部内容放入目标项目 `.agent-os/`，至少包含 `AGENTS.md`、`rules/`、`skills/`、`memory/`、`scripts/` 和 `tools/`。
-3. 使用 `.agent-os/templates/project-AGENTS.md` 在目标项目根目录创建轻量入口 `AGENTS.md`。
+3. 使用 `python .agent-os/scripts/agent-os.py install --target <project>` 自动生成目标项目根目录的轻量入口 `AGENTS.md`，或按下方模板手动创建。
 4. 在支持读取项目 `AGENTS.md` 的 AI Coding Agent 中打开目标项目。
 5. Agent 会通过根目录 `AGENTS.md` 进入 `.agent-os/AGENTS.md`，再识别项目、技术栈、任务层，并按需加载 context / workflows / rules / skills / memory；SQLite memory 工具由 `.agent-os/scripts/memory-tools.py` 提供，Agent Runtime 控制器由 `.agent-os/scripts/agent-runtime.py` 提供。
 

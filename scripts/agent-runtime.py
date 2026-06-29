@@ -4381,13 +4381,17 @@ def check_runtime(root: Path, conn) -> tuple[str, list[str]]:
     return ("passed" if not issues else "failed", issues)
 
 
-def check_templates(root: Path) -> tuple[str, list[str]]:
+def check_bootstrap(root: Path) -> tuple[str, list[str]]:
     issues = []
-    template = root / "templates" / "project-AGENTS.md"
-    if not template.exists():
-        issues.append("missing templates/project-AGENTS.md")
-    elif ".agent-os/AGENTS.md" not in template.read_text(encoding="utf-8", errors="ignore"):
-        issues.append("project-AGENTS.md does not delegate to .agent-os/AGENTS.md")
+    installer = root / "scripts" / "agent-os.py"
+    if not installer.exists():
+        issues.append("missing scripts/agent-os.py")
+    else:
+        text = installer.read_text(encoding="utf-8", errors="ignore")
+        if "PROJECT_AGENTS_TEMPLATE" not in text:
+            issues.append("installer missing embedded root AGENTS bootstrap template")
+        if ".agent-os/AGENTS.md" not in text:
+            issues.append("embedded bootstrap does not delegate to .agent-os/AGENTS.md")
     return ("passed" if not issues else "failed", issues)
 
 
@@ -4442,8 +4446,8 @@ def cmd_runtime_doctor(args: argparse.Namespace) -> None:
     checks.append({"name": "rules", "status": status, "issues": issues})
     status, issues = check_skills(root)
     checks.append({"name": "skills", "status": status, "issues": issues})
-    status, issues = check_templates(root)
-    checks.append({"name": "templates", "status": status, "issues": issues})
+    status, issues = check_bootstrap(root)
+    checks.append({"name": "bootstrap", "status": status, "issues": issues})
     status, issues = check_policy_pack_health(root)
     checks.append({"name": "policy-packs", "status": status, "issues": issues})
     status, issues = check_security_health(root)
@@ -5204,7 +5208,7 @@ def cmd_runtime_vscode_protocol(args: argparse.Namespace) -> None:
 def team_workspace_report(root: Path) -> dict[str, Any]:
     policy_state = load_policy_state(root)
     packs = all_policy_packs(root / "policy-packs")
-    shared_templates = sorted(workspace_relative(path).as_posix() for path in (root / "templates").glob("*") if path.is_file()) if (root / "templates").exists() else []
+    bootstrap_status, bootstrap_issues = check_bootstrap(root)
     override_points = [
         "project root AGENTS.md",
         ".agent-os/policy-packs/.enabled.json",
@@ -5215,10 +5219,10 @@ def team_workspace_report(root: Path) -> dict[str, Any]:
     return {
         "policy_state": policy_state,
         "policy_packs": packs,
-        "shared_templates": shared_templates,
+        "bootstrap": {"status": bootstrap_status, "issues": bootstrap_issues, "source": "scripts/agent-os.py embedded PROJECT_AGENTS_TEMPLATE"},
         "override_points": override_points,
         "conflicts": conflicts,
-        "ready": bool(packs) and not conflicts and bool(shared_templates),
+        "ready": bool(packs) and not conflicts and bootstrap_status == "passed",
     }
 
 
@@ -5240,7 +5244,7 @@ def release_checklist(root: Path, db_path: Path, schema_path: Path) -> dict[str,
         ("agents", check_agents_file),
         ("rules", check_rules),
         ("skills", check_skills),
-        ("templates", check_templates),
+        ("bootstrap", check_bootstrap),
         ("policy-packs", check_policy_pack_health),
         ("security", check_security_health),
     ):

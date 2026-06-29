@@ -39,7 +39,7 @@ Run or strongly recommend Review Gate for:
 ### 4. Documentation Gate
 - Were user-facing README/docs updated when setup, usage, behavior, configuration, API contracts, deployment, troubleshooting, or validation changed?
 - Were durable plans, task breakdowns, decisions, reviews, and verification records written under `docs/agent-os/` when needed?
-- Were Agent OS README, AGENTS, context, workflows, rules, tools, templates, and tests updated when Agent OS behavior changed?
+- Were Agent OS README, AGENTS, context, workflows, rules, tools, installer bootstrap, and tests updated when Agent OS behavior changed?
 - Did the final response state either what documentation changed or why no documentation update was needed?
 - Did the change avoid treating memory or Runtime records as substitutes for human-readable documentation?
 

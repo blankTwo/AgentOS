@@ -410,7 +410,7 @@ Check these documentation targets:
 - User-facing project README or docs when setup, usage, behavior, configuration, API contract, workflow, deployment, or troubleshooting changed.
 - Project execution documents under `docs/agent-os/` when the task produced a durable plan, task breakdown, decision, review, retrospective, or verification record.
 - Project memory summary under `memory/projects/{project}.md` when the task produced durable project context, constraints, decisions, pitfalls, or reusable lessons.
-- Agent OS documentation, AGENTS, context, workflows, rules, skills, tools, templates, and tests when Agent OS behavior changed.
+- Agent OS documentation, AGENTS, context, workflows, rules, skills, tools, installer bootstrap, and tests when Agent OS behavior changed.
 
 Documentation update is required when:
 - The delivered behavior differs from existing documentation.

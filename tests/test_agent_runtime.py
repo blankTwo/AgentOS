@@ -121,7 +121,7 @@ class AgentRuntimeCliTests(unittest.TestCase):
             self.assertTrue(result["ok"], result)
             check_names = {check["name"] for check in result["checks"]}
             self.assertTrue({"directories", "agents", "rules", "skills", "memory", "runtime"}.issubset(check_names))
-            self.assertTrue({"templates", "policy-packs", "security", "version", "db-writable"}.issubset(check_names))
+            self.assertTrue({"bootstrap", "policy-packs", "security", "version", "db-writable"}.issubset(check_names))
 
     def test_runtime_doctor_reports_broken_install(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1851,7 +1851,7 @@ class AgentRuntimeCliTests(unittest.TestCase):
 
             team = self.run_cli("runtime-team-workspace")
             self.assertTrue(team["ok"], team)
-            self.assertTrue(team["team_workspace"]["shared_templates"])
+            self.assertEqual(team["team_workspace"]["bootstrap"]["status"], "passed")
             self.assertTrue(team["team_workspace"]["policy_packs"])
 
             release = self.run_cli(
