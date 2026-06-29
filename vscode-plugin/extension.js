@@ -48,9 +48,9 @@ function fileExists(filePath) {
   }
 }
 
-function runPython(args, cwd) {
+function spawnPython(executable, args, cwd) {
   return new Promise((resolve, reject) => {
-    const child = cp.spawn("python", args, {
+    const child = cp.spawn(executable, args, {
       cwd,
       shell: false,
       env: process.env,
@@ -64,8 +64,25 @@ function runPython(args, cwd) {
       stderr += chunk.toString();
     });
     child.on("error", reject);
-    child.on("close", (code) => resolve({ code, stdout, stderr }));
+    child.on("close", (code) => resolve({ code, stdout, stderr, executable }));
   });
+}
+
+async function runPython(args, cwd) {
+  const executables = ["python3", "python"];
+  let lastError = null;
+  for (const executable of executables) {
+    try {
+      const result = await spawnPython(executable, args, cwd);
+      if (result.code === 0 || result.stderr || result.stdout) {
+        return result;
+      }
+      return result;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error("Unable to locate a Python interpreter.");
 }
 
 async function readJson(args, cwd) {

@@ -8,7 +8,7 @@ import json
 import sqlite3
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple
 
 from agent_store import (
     DEFAULT_DB,
@@ -393,7 +393,7 @@ def cmd_candidate_upsert(args: argparse.Namespace) -> None:
 
 def cmd_candidates(args: argparse.Namespace) -> None:
     params: list[Any] = []
-    where: list[str] = []
+    where: List[str] = []
     if args.project:
         where.append("project = ?")
         params.append(args.project)
@@ -439,10 +439,10 @@ def import_markdown_file(
     *,
     dry_run: bool = False,
     include_empty: bool = False,
-) -> dict[str, Any]:
+) -> Dict[str, Any]:
     text = path.read_text(encoding="utf-8")
     sections = split_markdown_sections(text)
-    imported: list[dict[str, Any]] = []
+    imported: list[Dict[str, Any]] = []
     skipped = 0
 
     for section in sections:
@@ -576,7 +576,7 @@ def cmd_import_markdown(args: argparse.Namespace) -> None:
     if missing:
         raise SystemExit(f"Markdown memory file not found: {', '.join(missing)}")
 
-    results: list[dict[str, Any]] = []
+    results: list[Dict[str, Any]] = []
     with connect(args.db) as conn:
         ensure_initialized(conn, args.schema)
         for path in files:
@@ -778,10 +778,10 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def parse_metadata(values: list[str] | None) -> dict[str, str] | None:
+def parse_metadata(values: Optional[List[str]]) -> Optional[Dict[str, str]]:
     if not values:
         return None
-    data: dict[str, str] = {}
+    data: Dict[str, str] = {}
     for value in values:
         if "=" not in value:
             raise SystemExit(f"Invalid metadata entry, expected key=value: {value}")
@@ -790,7 +790,7 @@ def parse_metadata(values: list[str] | None) -> dict[str, str] | None:
     return data
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Optional[List[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if hasattr(args, "metadata"):

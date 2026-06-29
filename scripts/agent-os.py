@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -61,7 +62,7 @@ EXCLUDE_PATTERNS = (
 )
 
 
-def should_skip(path: Path, target_agent_os: Path | None = None) -> bool:
+def should_skip(path: Path, target_agent_os: Optional[Path] = None) -> bool:
     if target_agent_os:
         try:
             path.resolve().relative_to(target_agent_os.resolve())
@@ -78,7 +79,7 @@ def should_skip(path: Path, target_agent_os: Path | None = None) -> bool:
     return False
 
 
-def git_dir_for(root: Path) -> Path | None:
+def git_dir_for(root: Path) -> Optional[Path]:
     completed = subprocess.run(
         ["git", "-C", str(root), "rev-parse", "--git-dir"],
         text=True,
@@ -92,14 +93,14 @@ def git_dir_for(root: Path) -> Path | None:
     return git_dir
 
 
-def managed_ignore_target(root: Path) -> tuple[Path, str, str]:
+def managed_ignore_target(root: Path) -> Tuple[Path, str, str]:
     git_dir = git_dir_for(root)
     if git_dir:
         return git_dir / "info" / "exclude", GIT_EXCLUDE_START, GIT_EXCLUDE_END
     return root / ".gitignore", GITIGNORE_START, GITIGNORE_END
 
 
-def update_managed_ignore_file(root: Path, entries: tuple[str, ...]) -> tuple[bool, str]:
+def update_managed_ignore_file(root: Path, entries: Tuple[str, ...]) -> Tuple[bool, str]:
     ignore_path, start_marker, end_marker = managed_ignore_target(root)
     label = ".git/info/exclude" if ignore_path.name == "exclude" else ".gitignore"
     existing = ignore_path.read_text(encoding="utf-8") if ignore_path.exists() else ""
@@ -119,7 +120,7 @@ def update_managed_ignore_file(root: Path, entries: tuple[str, ...]) -> tuple[bo
     return True, f"update {label} -> {ignore_path}"
 
 
-def remove_managed_ignore_file(root: Path) -> tuple[bool, str]:
+def remove_managed_ignore_file(root: Path) -> Tuple[bool, str]:
     ignore_path, start_marker, end_marker = managed_ignore_target(root)
     label = ".git/info/exclude" if ignore_path.name == "exclude" else ".gitignore"
     if not ignore_path.exists():
@@ -133,8 +134,8 @@ def remove_managed_ignore_file(root: Path) -> tuple[bool, str]:
     return True, f"no Agent OS managed block found in {label} -> {ignore_path}"
 
 
-def copy_agent_os(target_agent_os: Path, dry_run: bool = False) -> list[str]:
-    actions: list[str] = []
+def copy_agent_os(target_agent_os: Path, dry_run: bool = False) -> List[str]:
+    actions: List[str] = []
     for source in ROOT.rglob("*"):
         if should_skip(source, target_agent_os):
             continue
@@ -155,7 +156,7 @@ def cmd_install(args: argparse.Namespace) -> int:
     target = args.target.resolve()
     agent_os_dir = target / ".agent-os"
     root_agents = target / "AGENTS.md"
-    actions: list[str] = []
+    actions: List[str] = []
     if not target.exists():
         if args.dry_run:
             actions.append(f"create target directory {target}")
@@ -196,7 +197,7 @@ def cmd_uninstall(args: argparse.Namespace) -> int:
     target = args.target.resolve()
     agent_os_dir = target / ".agent-os"
     root_agents = target / "AGENTS.md"
-    actions: list[str] = []
+    actions: List[str] = []
     if not target.exists():
         print(f"Target directory does not exist: {target}", file=sys.stderr)
         return 2
@@ -221,7 +222,7 @@ def cmd_uninstall(args: argparse.Namespace) -> int:
 
 def cmd_ignore(args: argparse.Namespace) -> int:
     target = args.target.resolve()
-    actions: list[str] = []
+    actions: List[str] = []
     if not target.exists():
         print(f"Target directory does not exist: {target}", file=sys.stderr)
         return 2
@@ -246,7 +247,7 @@ RUNTIME_ALIASES = {
 }
 
 
-def forward_runtime(command: str, rest: list[str]) -> int:
+def forward_runtime(command: str, rest: List[str]) -> int:
     runtime_command = f"runtime-{command}" if command in RUNTIME_ALIASES else command
     completed = subprocess.run([sys.executable, str(RUNTIME), runtime_command, *rest], cwd=ROOT)
     return completed.returncode
@@ -282,7 +283,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Optional[List[str]] = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv and argv[0] in RUNTIME_ALIASES:
         return forward_runtime(argv[0], argv[1:])

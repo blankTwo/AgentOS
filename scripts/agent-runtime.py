@@ -19,7 +19,7 @@ import uuid
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple
 
 from agent_store import (
     DEFAULT_DB,
@@ -219,8 +219,8 @@ def require_arg(args: argparse.Namespace, name: str) -> Any:
     return value
 
 
-def parse_runtime_links(values: list[str] | None) -> list[tuple[str, str]]:
-    links: list[tuple[str, str]] = []
+def parse_runtime_links(values: Optional[List[str]]) -> List[Tuple[str, str]]:
+    links: List[Tuple[str, str]] = []
     if not values:
         return links
     for value in values:
@@ -239,7 +239,7 @@ def agent_workspace_root() -> Path:
     return ROOT.parent if ROOT.name == ".agent-os" else ROOT
 
 
-def split_terms(values: list[str] | None, fallback: str | None = None) -> list[str]:
+def split_terms(values: Optional[List[str]], fallback: Optional[str] = None) -> List[str]:
     raw = " ".join(values or [])
     if fallback:
         raw = f"{raw} {fallback}"
@@ -247,7 +247,7 @@ def split_terms(values: list[str] | None, fallback: str | None = None) -> list[s
     return list(dict.fromkeys(term for term in terms if len(term) >= 2))
 
 
-def compact_list(values: list[str], limit: int = 8) -> str:
+def compact_list(values: List[str], limit: int = 8) -> str:
     if not values:
         return "none"
     shown = values[:limit]
@@ -255,14 +255,14 @@ def compact_list(values: list[str], limit: int = 8) -> str:
     return "; ".join(shown) + suffix
 
 
-def load_json_file(path: Path) -> dict[str, Any]:
+def load_json_file(path: Path) -> Dict[str, Any]:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
 
 
-def detect_project_slug(project: str | None = None) -> tuple[str, str]:
+def detect_project_slug(project: Optional[str] = None) -> Tuple[str, str]:
     if project:
         return normalize_project_slug(project), "provided --project"
     base = agent_workspace_root()
@@ -275,7 +275,7 @@ def detect_project_slug(project: str | None = None) -> tuple[str, str]:
     return "unknown-project", "fallback unknown-project"
 
 
-def detect_stack(files: list[str] | None = None) -> tuple[str, str, str]:
+def detect_stack(files: Optional[List[str]] = None) -> tuple[str, str, str]:
     base = agent_workspace_root()
     candidates = [Path(value) for value in files or []]
     suffixes = {path.suffix.lower() for path in candidates}
@@ -283,8 +283,8 @@ def detect_stack(files: list[str] | None = None) -> tuple[str, str, str]:
     deps = " ".join((package.get("dependencies") or {}).keys())
     dev_deps = " ".join((package.get("devDependencies") or {}).keys())
     dep_text = f"{deps} {dev_deps}".lower()
-    signals: list[str] = []
-    stacks: list[str] = []
+    signals: List[str] = []
+    stacks: List[str] = []
 
     if suffixes.intersection({".tsx", ".jsx"}) or "react" in dep_text:
         stacks.append("React")
@@ -319,12 +319,12 @@ def detect_stack(files: list[str] | None = None) -> tuple[str, str, str]:
     return ", ".join(dict.fromkeys(stacks)), confidence, "; ".join(signals)
 
 
-def detect_task_layers(request: str, files: list[str] | None = None) -> list[str]:
+def detect_task_layers(request: str, files: Optional[List[str]] = None) -> List[str]:
     haystack = request.lower()
     file_values = files or []
     suffixes = {Path(value).suffix.lower() for value in file_values}
     paths = " ".join(value.lower().replace("\\", "/") for value in file_values)
-    layers: list[str] = []
+    layers: List[str] = []
 
     for layer, keywords in TASK_LAYER_KEYWORDS.items():
         if any(keyword.lower() in haystack for keyword in keywords):
@@ -357,7 +357,7 @@ def detect_intent(request: str) -> str:
     return "task"
 
 
-def detect_scale(request: str, layers: list[str], files: list[str] | None = None) -> str:
+def detect_scale(request: str, layers: List[str], files: Optional[List[str]] = None) -> str:
     lower = request.lower()
     file_count = len(files or [])
     layer_count = len(set(layers))
@@ -409,8 +409,8 @@ def test_files_available() -> bool:
     return any("test" in key for key in scripts)
 
 
-def workspace_risk_signals(files: list[str] | None = None) -> list[str]:
-    signals: list[str] = []
+def workspace_risk_signals(files: Optional[List[str]] = None) -> List[str]:
+    signals: List[str] = []
     values = files or []
     normalized = [value.replace("\\", "/").lower() for value in values]
     if git_worktree_dirty():
@@ -430,7 +430,7 @@ def workspace_risk_signals(files: list[str] | None = None) -> list[str]:
     return list(dict.fromkeys(signals))
 
 
-def docs_path_bucket(path: str) -> str | None:
+def docs_path_bucket(path: str) -> Optional[str]:
     normalized = path.replace("\\", "/").lower()
     if not normalized.startswith("docs/agent-os/"):
         return None
@@ -447,9 +447,9 @@ def docs_path_bucket(path: str) -> str | None:
     return "docs"
 
 
-def docs_impact_for_files(files: list[str] | None) -> dict[str, Any]:
+def docs_impact_for_files(files: Optional[List[str]]) -> Dict[str, Any]:
     impacted = {"plans": False, "tasks": False, "decisions": False, "reviews": False, "verification": False}
-    reasons: list[str] = []
+    reasons: List[str] = []
     for value in files or []:
         bucket = docs_path_bucket(value)
         if bucket and bucket in impacted:
@@ -458,7 +458,7 @@ def docs_impact_for_files(files: list[str] | None) -> dict[str, Any]:
     return {"impacted": impacted, "reasons": list(dict.fromkeys(reasons))}
 
 
-def docs_freshness_for_request(request: str, files: list[str] | None, workspace: dict[str, Any]) -> dict[str, Any]:
+def docs_freshness_for_request(request: str, files: Optional[List[str]], workspace: Dict[str, Any]) -> Dict[str, Any]:
     docs_impact = docs_impact_for_files(files)
     docs_exists = workspace["docs"]["exists"]
     normalized = [value.replace("\\", "/").lower() for value in files or []]
@@ -489,18 +489,18 @@ def knowledge_conflict_for_capability(
     *,
     project: str,
     capability_name: str,
-    layer_hits: dict[str, list[str]],
-    linkage: dict[str, Any],
-    memory_hits: list[str],
-    docs_freshness: dict[str, Any],
-    workspace: dict[str, Any],
-) -> dict[str, Any]:
+    layer_hits: dict[str, List[str]],
+    linkage: Dict[str, Any],
+    memory_hits: List[str],
+    docs_freshness: Dict[str, Any],
+    workspace: Dict[str, Any],
+) -> Dict[str, Any]:
     code_present = any(layer_hits[layer] for layer in ("frontend", "api", "backend", "data", "verification"))
     memory_present = bool(memory_hits)
     docs_present = workspace["docs"]["exists"]
     docs_mention = bool(docs_freshness["impact"]["reasons"])
-    conflict_sources: list[str] = []
-    reasons: list[str] = []
+    conflict_sources: List[str] = []
+    reasons: List[str] = []
     if memory_present and not code_present:
         conflict_sources.append("memory-code")
         reasons.append("Memory has hits but code evidence is absent.")
@@ -590,18 +590,18 @@ def knowledge_conflict_from_state(
     *,
     project: str,
     name: str,
-    memory_hits: list[str],
-    docs_freshness: dict[str, Any],
-    workspace: dict[str, Any],
-    code_evidence: list[str],
-    runtime_evidence: list[str],
-) -> dict[str, Any]:
+    memory_hits: List[str],
+    docs_freshness: Dict[str, Any],
+    workspace: Dict[str, Any],
+    code_evidence: List[str],
+    runtime_evidence: List[str],
+) -> Dict[str, Any]:
     memory_present = bool(memory_hits)
     docs_present = workspace["docs"]["exists"]
     code_present = bool(code_evidence)
     runtime_present = bool(runtime_evidence)
-    conflict_sources: list[str] = []
-    reasons: list[str] = []
+    conflict_sources: List[str] = []
+    reasons: List[str] = []
     if memory_present and not code_present:
         conflict_sources.append("memory-code")
         reasons.append("Memory mentions the capability but current code evidence is missing.")
@@ -637,7 +637,7 @@ def knowledge_conflict_from_state(
     }
 
 
-def workspace_snapshot(project: str | None = None) -> dict[str, Any]:
+def workspace_snapshot(project: Optional[str] = None) -> Dict[str, Any]:
     base = agent_workspace_root()
     project_slug, project_evidence = detect_project_slug(project)
     git_status = ""
@@ -717,7 +717,7 @@ def workspace_snapshot(project: str | None = None) -> dict[str, Any]:
     }
 
 
-def context_for_request(project: str | None, request: str, files: list[str] | None) -> dict[str, Any]:
+def context_for_request(project: Optional[str], request: str, files: Optional[List[str]]) -> Dict[str, Any]:
     project_slug, project_evidence = detect_project_slug(project)
     stack, stack_confidence, stack_evidence = detect_stack(files)
     layers = detect_task_layers(request, files)
@@ -741,7 +741,7 @@ def context_for_request(project: str | None, request: str, files: list[str] | No
     }
 
 
-def record_runtime_context(conn, context: dict[str, Any]) -> int:
+def record_runtime_context(conn, context: Dict[str, Any]) -> int:
     cur = conn.execute(
         """
         INSERT INTO runtime_contexts(
@@ -771,11 +771,11 @@ def record_event(
     project: str,
     event_type: str,
     summary: str,
-    run_id: str | None = None,
-    goal_id: str | None = None,
-    task_id: str | None = None,
+    run_id: Optional[str] = None,
+    goal_id: Optional[str] = None,
+    task_id: Optional[str] = None,
     source: str = "runtime",
-    payload: dict[str, Any] | None = None,
+    payload: Optional[Dict[str, Any]] = None,
     severity: str = "info",
 ) -> int:
     cur = conn.execute(
@@ -809,11 +809,11 @@ def transition_state(
     new_status: str,
     event_type: str,
     summary: str,
-    goal_id: str | None = None,
-    task_id: str | None = None,
-    run_id: str | None = None,
-    extra_fields: dict[str, Any] | None = None,
-    payload: dict[str, Any] | None = None,
+    goal_id: Optional[str] = None,
+    task_id: Optional[str] = None,
+    run_id: Optional[str] = None,
+    extra_fields: Optional[Dict[str, Any]] = None,
+    payload: Optional[Dict[str, Any]] = None,
 ) -> None:
     extra_fields = extra_fields or {}
     extra_sql = "".join(f", {key} = ?" for key in extra_fields)
@@ -866,14 +866,14 @@ def transition_state(
     )
 
 
-def normalize_skill_list(value: Any) -> list[str]:
+def normalize_skill_list(value: Any) -> List[str]:
     if value is None:
         return []
     if isinstance(value, list):
         raw_values = value
     else:
         raw_values = [value]
-    normalized: list[str] = []
+    normalized: List[str] = []
     for item in raw_values:
         for part in str(item).split(","):
             part = part.strip().strip("\"'")
@@ -882,7 +882,7 @@ def normalize_skill_list(value: Any) -> list[str]:
     return list(dict.fromkeys(normalized))
 
 
-def skill_identifiers(manifest: dict[str, Any]) -> set[str]:
+def skill_identifiers(manifest: Dict[str, Any]) -> set[str]:
     identifiers = {str(manifest.get("skill_name") or "").strip()}
     path = manifest.get("path")
     if path:
@@ -891,14 +891,14 @@ def skill_identifiers(manifest: dict[str, Any]) -> set[str]:
 
 
 def match_skill_trigger(
-    manifest: dict[str, Any],
-    request: str | None,
-    task_layers: list[str],
+    manifest: Dict[str, Any],
+    request: Optional[str],
+    task_layers: List[str],
     stack: str,
-) -> dict[str, Any]:
+) -> Dict[str, Any]:
     request_text = (request or "").lower()
     stack_text = (stack or "").lower()
-    evidence: list[str] = []
+    evidence: List[str] = []
     score = 0
     skill_name = manifest.get("skill_name")
 
@@ -936,8 +936,8 @@ def match_skill_trigger(
     }
 
 
-def build_skill_dependency_graph(manifests: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    graph: dict[str, dict[str, Any]] = {}
+def build_skill_dependency_graph(manifests: list[Dict[str, Any]]) -> dict[str, Dict[str, Any]]:
+    graph: dict[str, Dict[str, Any]] = {}
     known = set()
     for manifest in manifests:
         known.update(skill_identifiers(manifest))
@@ -955,9 +955,9 @@ def build_skill_dependency_graph(manifests: list[dict[str, Any]]) -> dict[str, d
 
 
 def detect_skill_conflicts(
-    manifests: list[dict[str, Any]],
-    selected_skill_names: list[str] | None = None,
-) -> list[dict[str, Any]]:
+    manifests: list[Dict[str, Any]],
+    selected_skill_names: Optional[List[str]] = None,
+) -> list[Dict[str, Any]]:
     selected = set(selected_skill_names or [])
     if selected:
         selected_manifests = [
@@ -971,9 +971,9 @@ def detect_skill_conflicts(
     for manifest in selected_manifests:
         active_identifiers.update(skill_identifiers(manifest))
 
-    conflicts: list[dict[str, Any]] = []
-    seen: set[tuple[str, str]] = set()
-    skill_name_counts: dict[str, int] = {}
+    conflicts: list[Dict[str, Any]] = []
+    seen: set[Tuple[str, str]] = set()
+    skill_name_counts: Dict[str, int] = {}
     for manifest in selected_manifests:
         skill_name_counts[manifest["skill_name"]] = skill_name_counts.get(manifest["skill_name"], 0) + 1
         for conflict in manifest.get("conflicts", []):
@@ -1006,13 +1006,13 @@ def detect_skill_conflicts(
 
 
 def recommend_skills(
-    task_layers: list[str],
+    task_layers: List[str],
     stack: str,
-    request: str | None = None,
-    skills_dir: Path | None = None,
-) -> list[dict[str, Any]]:
+    request: Optional[str] = None,
+    skills_dir: Optional[Path] = None,
+) -> list[Dict[str, Any]]:
     available = load_skill_metadata(skills_dir)
-    recommendations: list[dict[str, str]] = []
+    recommendations: list[Dict[str, str]] = []
     for layer in task_layers:
         for skill in SKILL_BY_LAYER.get(layer, ()):
             meta = available.get(skill, {})
@@ -1065,18 +1065,18 @@ def recommend_skills(
                 "trigger_score": match["score"],
             }
         )
-    deduped: dict[str, dict[str, Any]] = {}
+    deduped: dict[str, Dict[str, Any]] = {}
     for item in recommendations:
         deduped.setdefault(item["skill_name"], item)
     return list(deduped.values())
 
 
-def parse_skill_frontmatter(text: str) -> tuple[dict[str, Any], bool]:
+def parse_skill_frontmatter(text: str) -> tuple[Dict[str, Any], bool]:
     lines = text.splitlines()
     if not lines or lines[0].strip() != "---":
         return {}, False
-    data: dict[str, Any] = {}
-    current_key: str | None = None
+    data: Dict[str, Any] = {}
+    current_key: Optional[str] = None
     for line in lines[1:]:
         stripped = line.strip()
         if stripped == "---":
@@ -1104,8 +1104,8 @@ def parse_skill_frontmatter(text: str) -> tuple[dict[str, Any], bool]:
     return data, False
 
 
-def extract_skill_section_headings(text: str) -> list[str]:
-    headings: list[str] = []
+def extract_skill_section_headings(text: str) -> List[str]:
+    headings: List[str] = []
     for line in text.splitlines():
         if line.startswith("#"):
             heading = line.lstrip("#").strip()
@@ -1114,7 +1114,7 @@ def extract_skill_section_headings(text: str) -> list[str]:
     return headings
 
 
-def validate_skill_manifest(skill_file: Path) -> dict[str, Any]:
+def validate_skill_manifest(skill_file: Path) -> Dict[str, Any]:
     skill_dir_name = skill_file.parent.name
     try:
         text = skill_file.read_text(encoding="utf-8")
@@ -1141,8 +1141,8 @@ def validate_skill_manifest(skill_file: Path) -> dict[str, Any]:
     conflicts = normalize_skill_list(frontmatter.get("conflicts", frontmatter.get("conflicts_with", [])))
 
     heading_text = " ".join(headings).lower()
-    issues: list[str] = []
-    warnings: list[str] = []
+    issues: List[str] = []
+    warnings: List[str] = []
     if not has_frontmatter:
         issues.append("missing frontmatter")
     if not name:
@@ -1178,9 +1178,9 @@ def validate_skill_manifest(skill_file: Path) -> dict[str, Any]:
     }
 
 
-def load_skill_metadata(skills_dir: Path | None = None) -> dict[str, dict[str, Any]]:
+def load_skill_metadata(skills_dir: Optional[Path] = None) -> dict[str, Dict[str, Any]]:
     skills_dir = skills_dir or ROOT / "skills"
-    metadata: dict[str, dict[str, Any]] = {}
+    metadata: dict[str, Dict[str, Any]] = {}
     if not skills_dir.exists():
         return metadata
     for skill_file in skills_dir.glob("*/SKILL.md"):
@@ -1189,12 +1189,12 @@ def load_skill_metadata(skills_dir: Path | None = None) -> dict[str, dict[str, A
     return metadata
 
 
-def validate_skill_runtime(skills_dir: Path | None = None, skill_names: list[str] | None = None) -> list[dict[str, Any]]:
+def validate_skill_runtime(skills_dir: Optional[Path] = None, skill_names: Optional[List[str]] = None) -> list[Dict[str, Any]]:
     skills_dir = skills_dir or ROOT / "skills"
     if not skills_dir.exists():
         return []
     requested = set(skill_names or [])
-    manifests: list[dict[str, Any]] = []
+    manifests: list[Dict[str, Any]] = []
     for skill_file in sorted(skills_dir.glob("*/SKILL.md")):
         manifest = validate_skill_manifest(skill_file)
         if requested and skill_file.parent.name not in requested and manifest["skill_name"] not in requested:
@@ -1219,7 +1219,7 @@ def validate_skill_runtime(skills_dir: Path | None = None, skill_names: list[str
     return manifests
 
 
-def plan_tasks_for(context: dict[str, Any], capability_status: str) -> list[dict[str, str]]:
+def plan_tasks_for(context: Dict[str, Any], capability_status: str) -> list[Dict[str, str]]:
     layers = context["task_layers"]
     scale = context["scale"]
     tasks = [
@@ -1266,10 +1266,10 @@ def plan_tasks_for(context: dict[str, Any], capability_status: str) -> list[dict
     return tasks
 
 
-def resolve_scan_roots(values: list[str] | None) -> list[Path]:
+def resolve_scan_roots(values: Optional[List[str]]) -> List[Path]:
     base = agent_workspace_root()
     roots = values or ["."]
-    resolved: list[Path] = []
+    resolved: List[Path] = []
     for value in roots:
         path = Path(value)
         if not path.is_absolute():
@@ -1390,7 +1390,7 @@ def extract_route_tokens(text: str) -> set[str]:
     return tokens
 
 
-def capability_linkage(layer_hits: dict[str, list[str]], route_tokens: dict[str, set[str]]) -> dict[str, Any]:
+def capability_linkage(layer_hits: dict[str, List[str]], route_tokens: dict[str, set[str]]) -> Dict[str, Any]:
     api_tokens = route_tokens.get("api", set())
     backend_tokens = route_tokens.get("backend", set())
     frontend_tokens = route_tokens.get("frontend", set())
@@ -1413,7 +1413,7 @@ def capability_linkage(layer_hits: dict[str, list[str]], route_tokens: dict[str,
 
 
 def derive_capability_status(
-    layer_hits: dict[str, list[str]],
+    layer_hits: dict[str, List[str]],
     *,
     require_data: bool = False,
     require_verification: bool = False,
@@ -1434,7 +1434,7 @@ def derive_capability_status(
     return "partial"
 
 
-def confidence_for_capability(status: str, layer_hits: dict[str, list[str]], memory_hits: list[str]) -> float:
+def confidence_for_capability(status: str, layer_hits: dict[str, List[str]], memory_hits: List[str]) -> float:
     layer_count = sum(1 for values in layer_hits.values() if values)
     score = 0.2 + min(layer_count * 0.15, 0.6)
     if status == "complete":
@@ -1451,15 +1451,15 @@ def confidence_for_capability(status: str, layer_hits: dict[str, list[str]], mem
 def rank_context_items(
     *,
     request: str,
-    context: dict[str, Any],
-    workspace: dict[str, Any],
-    memory_hits: list[str] | None = None,
-    verification_hits: list[str] | None = None,
-) -> list[dict[str, Any]]:
+    context: Dict[str, Any],
+    workspace: Dict[str, Any],
+    memory_hits: Optional[List[str]] = None,
+    verification_hits: Optional[List[str]] = None,
+) -> list[Dict[str, Any]]:
     memory_hits = memory_hits or []
     verification_hits = verification_hits or []
     request_lower = request.lower()
-    ranked: list[dict[str, Any]] = []
+    ranked: list[Dict[str, Any]] = []
 
     def add(kind: str, title: str, summary: str, score: float, evidence: str, source: str) -> None:
         ranked.append(
@@ -1529,13 +1529,13 @@ def rank_context_items(
     if "fix" in request_lower or "bug" in request_lower:
         add("intent", "Bugfix intent", context["intent"], 0.84, "request language", "context")
 
-    deduped: dict[tuple[str, str], dict[str, Any]] = {}
+    deduped: dict[Tuple[str, str], Dict[str, Any]] = {}
     for item in ranked:
         deduped[(item["kind"], item["title"])] = item
     return sorted(deduped.values(), key=lambda item: item["score"], reverse=True)
 
 
-def search_memory_for_capability(conn, project: str, query: str, limit: int = 5) -> list[str]:
+def search_memory_for_capability(conn, project: str, query: str, limit: int = 5) -> List[str]:
     fts_query = build_safe_fts_query(query)
     try:
         rows = conn.execute(
@@ -1573,9 +1573,9 @@ def policy_decisions_for(
     *,
     scale: str,
     capability_status: str,
-    task_layers: list[str],
-    signals: list[str],
-) -> list[dict[str, str]]:
+    task_layers: List[str],
+    signals: List[str],
+) -> list[Dict[str, str]]:
     normalized_layers = {layer.lower() for layer in task_layers}
     normalized_signals = {signal.lower() for signal in signals}
     high_risk_layers = {"api", "data", "integration", "runtime", "bugfix"}
@@ -1752,7 +1752,7 @@ def cmd_runtime_scan_capability(args: argparse.Namespace) -> None:
         raise SystemExit("Expected capability --name or --term")
 
     roots = resolve_scan_roots(args.roots)
-    layer_hits: dict[str, list[str]] = {
+    layer_hits: dict[str, List[str]] = {
         "frontend": [],
         "api": [],
         "backend": [],
@@ -1762,7 +1762,7 @@ def cmd_runtime_scan_capability(args: argparse.Namespace) -> None:
     files_scanned = 0
     files_matched = 0
     max_hits_per_layer = args.max_hits
-    memory_hits: list[str] = []
+    memory_hits: List[str] = []
     route_tokens: dict[str, set[str]] = {
         "frontend": set(),
         "api": set(),
@@ -1925,11 +1925,11 @@ def cmd_runtime_scan_capability(args: argparse.Namespace) -> None:
     )
 
 
-def verification_checks_for(task_layers: list[str], scale: str, changed_files: list[str]) -> list[dict[str, str]]:
+def verification_checks_for(task_layers: List[str], scale: str, changed_files: List[str]) -> list[Dict[str, str]]:
     layers = {layer.lower() for layer in task_layers}
     files = [Path(value) for value in changed_files]
     suffixes = {path.suffix.lower() for path in files}
-    checks: list[dict[str, str]] = []
+    checks: list[Dict[str, str]] = []
 
     runtime_files = {"scripts/agent-runtime.py", "scripts/agent_store.py"}
     if "runtime" in layers or any(path.as_posix() in runtime_files for path in files):
@@ -1998,8 +1998,8 @@ def verification_checks_for(task_layers: list[str], scale: str, changed_files: l
             }
         )
 
-    seen: set[tuple[str, str]] = set()
-    unique: list[dict[str, str]] = []
+    seen: set[Tuple[str, str]] = set()
+    unique: list[Dict[str, str]] = []
     for check in checks:
         key = (check["scope"], check["command"])
         if key not in seen:
@@ -2010,15 +2010,15 @@ def verification_checks_for(task_layers: list[str], scale: str, changed_files: l
 
 def pipeline_stages_for(
     *,
-    workspace: dict[str, Any],
-    decisions: list[dict[str, Any]],
-    verification_checks: list[dict[str, Any]],
+    workspace: Dict[str, Any],
+    decisions: list[Dict[str, Any]],
+    verification_checks: list[Dict[str, Any]],
     docs_required: bool,
     memory_required: bool,
     open_tasks: int,
     recovery_required: bool,
-    recoveries: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
+    recoveries: list[Dict[str, Any]],
+) -> list[Dict[str, Any]]:
     recovery_ready = any(
         row.get("status") in {"available", "used"} or row.get("checkpoint_ref")
         for row in recoveries
@@ -2067,10 +2067,10 @@ def pipeline_stages_for(
     ]
 
 
-def validation_profile_for(stack: str, task_layers: list[str], files: list[str] | None = None) -> list[dict[str, str]]:
+def validation_profile_for(stack: str, task_layers: List[str], files: Optional[List[str]] = None) -> list[Dict[str, str]]:
     stack_lower = stack.lower()
     layers = {layer.lower() for layer in task_layers}
-    checks: list[dict[str, str]] = []
+    checks: list[Dict[str, str]] = []
     if "python" in stack_lower or any(Path(value).suffix == ".py" for value in files or []):
         checks.append({"scope": "python syntax", "command": "python -m py_compile <changed-python-files>"})
         checks.append({"scope": "python tests", "command": "python -m unittest discover -s tests"})
@@ -2092,13 +2092,13 @@ def validation_profile_for(stack: str, task_layers: list[str], files: list[str] 
     return checks
 
 
-def verification_pipeline_for(stack: str, task_layers: list[str], scale: str, files: list[str] | None = None) -> list[dict[str, Any]]:
+def verification_pipeline_for(stack: str, task_layers: List[str], scale: str, files: Optional[List[str]] = None) -> list[Dict[str, Any]]:
     layers = {layer.lower() for layer in task_layers}
     file_values = files or []
     suffixes = {Path(value).suffix.lower() for value in file_values}
     profile_checks = validation_profile_for(stack, task_layers, file_values)
     planned_checks = verification_checks_for(task_layers, scale, file_values)
-    stages: list[dict[str, Any]] = []
+    stages: list[Dict[str, Any]] = []
 
     def add(stage: str, command: str, required: bool, rationale: str) -> None:
         stages.append(
@@ -2126,7 +2126,7 @@ def verification_pipeline_for(stack: str, task_layers: list[str], scale: str, fi
     if not stages:
         add("targeted", "Run the narrowest command or manual check that proves the changed behavior.", True, "Every task needs explicit validation evidence.")
 
-    deduped: dict[tuple[str, str], dict[str, Any]] = {}
+    deduped: dict[Tuple[str, str], Dict[str, Any]] = {}
     for stage in stages:
         deduped[(stage["stage"], stage["command"])] = stage
     return list(deduped.values())
@@ -2397,8 +2397,8 @@ def cmd_runtime_workspace_snapshot(args: argparse.Namespace) -> None:
 def cmd_runtime_rank_context(args: argparse.Namespace) -> None:
     context = context_for_request(args.project, args.request, args.files)
     workspace = workspace_snapshot(context["project"])
-    memory_hits: list[str] = []
-    verification_hits: list[str] = []
+    memory_hits: List[str] = []
+    verification_hits: List[str] = []
     if args.use_memory:
         with connect(args.db) as conn:
             ensure_initialized(conn, args.schema)
@@ -2714,7 +2714,7 @@ def cmd_runtime_select_skills(args: argparse.Namespace) -> None:
     manifests = validate_skill_runtime(args.skills_dir or ROOT / "skills", selected_skill_names)
     dependency_graph = build_skill_dependency_graph(manifests)
     conflicts = detect_skill_conflicts(manifests, selected_skill_names)
-    blockers: list[str] = []
+    blockers: List[str] = []
     for manifest in manifests:
         if manifest["status"] != "valid":
             blockers.append(f"{manifest['skill_name']}: {manifest['status']}")
@@ -2774,10 +2774,10 @@ def cmd_runtime_validate_skills(args: argparse.Namespace) -> None:
         }
         for manifest in manifests
     ]
-    status_counts: dict[str, int] = {}
+    status_counts: Dict[str, int] = {}
     for manifest in manifests:
         status_counts[manifest["status"]] = status_counts.get(manifest["status"], 0) + 1
-    blockers: list[str] = []
+    blockers: List[str] = []
     for manifest in manifests:
         if manifest["status"] != "valid":
             blockers.append(f"{manifest['skill_name']}: {manifest['status']}")
@@ -2857,7 +2857,7 @@ def cmd_runtime_plan_tasks(args: argparse.Namespace) -> None:
         "files": args.files or [],
     }
     tasks = plan_tasks_for(context, args.capability_status)
-    created: list[str] = []
+    created: List[str] = []
     if args.record:
         with connect(args.db) as conn:
             ensure_initialized(conn, args.schema)
@@ -2964,7 +2964,7 @@ def cmd_runtime_transition(args: argparse.Namespace) -> None:
         "task": "TaskStateChanged",
         "run": "RunStateChanged",
     }
-    extra_fields: dict[str, Any] = {}
+    extra_fields: Dict[str, Any] = {}
     if args.entity_type == "goal":
         if args.current_phase:
             extra_fields["current_phase"] = args.current_phase
@@ -3017,7 +3017,7 @@ def command_is_allowed(command: str, allow_unsafe: bool = False) -> bool:
     return any(normalized.startswith(prefix) for prefix in SAFE_VERIFICATION_PREFIXES)
 
 
-def classify_tool_type(command: str | None, explicit_type: str | None = None) -> str:
+def classify_tool_type(command: Optional[str], explicit_type: Optional[str] = None) -> str:
     if explicit_type:
         return explicit_type
     normalized = (command or "").strip().lower()
@@ -3035,7 +3035,7 @@ def summarize_output(text: str, limit: int = 1200) -> str:
     return compact[: limit - 3].rstrip() + "..."
 
 
-def redact_secrets(text: str | None) -> str | None:
+def redact_secrets(text: Optional[str]) -> Optional[str]:
     if text is None:
         return None
     redacted = text
@@ -3051,7 +3051,7 @@ def redact_secrets(text: str | None) -> str | None:
     return redacted
 
 
-def model_provider_config(provider: str) -> dict[str, Any]:
+def model_provider_config(provider: str) -> Dict[str, Any]:
     required_env = MODEL_PROVIDER_ENV_VARS.get(provider, ())
     configured = [name for name in required_env if os.environ.get(name)]
     missing = [name for name in required_env if not os.environ.get(name)]
@@ -3083,7 +3083,7 @@ def model_provider_config(provider: str) -> dict[str, Any]:
     }
 
 
-def execute_model_adapter(args: argparse.Namespace, adapter: str) -> dict[str, Any]:
+def execute_model_adapter(args: argparse.Namespace, adapter: str) -> Dict[str, Any]:
     prompt = args.prompt or args.prompt_summary or ""
     if args.provider in {"local", "mock"}:
         digest = hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:12]
@@ -3124,7 +3124,7 @@ def execute_model_adapter(args: argparse.Namespace, adapter: str) -> dict[str, A
     }
 
 
-def classify_failure(exit_code: int | None, output: str) -> str | None:
+def classify_failure(exit_code: Optional[int], output: str) -> Optional[str]:
     if exit_code == 0:
         return None
     lower = output.lower()
@@ -3141,7 +3141,7 @@ def classify_failure(exit_code: int | None, output: str) -> str | None:
     return "unknown"
 
 
-def classify_failure_detail(exit_code: int | None, output: str, command: str | None = None) -> dict[str, str | None]:
+def classify_failure_detail(exit_code: Optional[int], output: str, command: Optional[str] = None) -> dict[str, Optional[str]]:
     base = classify_failure(exit_code, output)
     lower = output.lower()
     command_lower = (command or "").lower()
@@ -3165,8 +3165,8 @@ def classify_failure_detail(exit_code: int | None, output: str, command: str | N
     return {"type": base, "detail": detail}
 
 
-def parse_header_values(values: list[str] | None) -> dict[str, str]:
-    headers: dict[str, str] = {}
+def parse_header_values(values: Optional[List[str]]) -> Dict[str, str]:
+    headers: Dict[str, str] = {}
     for value in values or []:
         if ":" not in value:
             raise SystemExit(f"Invalid header, expected Name: Value: {value}")
@@ -3179,7 +3179,7 @@ def parse_header_values(values: list[str] | None) -> dict[str, str]:
     return headers
 
 
-def run_shell_adapter(command: str, timeout: int, allow_unsafe: bool) -> dict[str, Any]:
+def run_shell_adapter(command: str, timeout: int, allow_unsafe: bool) -> Dict[str, Any]:
     if not command_is_allowed(command, allow_unsafe):
         return {
             "status": "blocked",
@@ -3200,7 +3200,7 @@ def run_shell_adapter(command: str, timeout: int, allow_unsafe: bool) -> dict[st
     }
 
 
-def run_git_adapter(action: str | None, target: str | None, timeout: int) -> dict[str, Any]:
+def run_git_adapter(action: Optional[str], target: Optional[str], timeout: int) -> Dict[str, Any]:
     action = action or "status"
     commands = {
         "status": ["git", "status", "--short"],
@@ -3239,7 +3239,7 @@ def run_git_adapter(action: str | None, target: str | None, timeout: int) -> dic
     }
 
 
-def run_url_fetch_adapter(*, url: str, method: str, headers: dict[str, str], body: str | None, timeout: int, expect_text: str | None, browser_mode: bool = False) -> dict[str, Any]:
+def run_url_fetch_adapter(*, url: str, method: str, headers: Dict[str, str], body: Optional[str], timeout: int, expect_text: Optional[str], browser_mode: bool = False) -> Dict[str, Any]:
     data = body.encode("utf-8") if body is not None else None
     request = urllib.request.Request(url, data=data, headers=headers, method=method.upper())
     status_code = None
@@ -3273,7 +3273,7 @@ def run_url_fetch_adapter(*, url: str, method: str, headers: dict[str, str], bod
     }
 
 
-def run_browser_adapter(*, url: str, action: str, selector: str | None, text: str | None, expect_text: str | None, screenshot_path: str | None, timeout: int) -> dict[str, Any]:
+def run_browser_adapter(*, url: str, action: str, selector: Optional[str], text: Optional[str], expect_text: Optional[str], screenshot_path: Optional[str], timeout: int) -> Dict[str, Any]:
     try:
         from playwright.sync_api import Error as PlaywrightError
         from playwright.sync_api import sync_playwright
@@ -3340,7 +3340,7 @@ def run_browser_adapter(*, url: str, action: str, selector: str | None, text: st
     }
 
 
-def record_tool_run(conn, *, project: str, goal_id: str | None, run_id: str | None, task_id: str | None, tool_type: str, adapter: str, command: str | None, target: str | None, status: str, exit_code: int | None, duration_ms: int | None, stdout_summary: str | None, failure_type: str | None, failure_detail: str | None, evidence: str | None) -> int:
+def record_tool_run(conn, *, project: str, goal_id: Optional[str], run_id: Optional[str], task_id: Optional[str], tool_type: str, adapter: str, command: Optional[str], target: Optional[str], status: str, exit_code: Optional[int], duration_ms: Optional[int], stdout_summary: Optional[str], failure_type: Optional[str], failure_detail: Optional[str], evidence: Optional[str]) -> int:
     cur = conn.execute(
         """
         INSERT INTO tool_runs(
@@ -3370,13 +3370,13 @@ def record_tool_run(conn, *, project: str, goal_id: str | None, run_id: str | No
     return cur.lastrowid
 
 
-def model_adapter_name(provider: str, adapter: str | None = None) -> str:
+def model_adapter_name(provider: str, adapter: Optional[str] = None) -> str:
     if adapter:
         return adapter
     return f"{provider}-model-adapter"
 
 
-def record_model_run(conn, *, project: str, goal_id: str | None, run_id: str | None, task_id: str | None, provider: str, model_name: str, adapter: str, operation: str, status: str, duration_ms: int | None, input_tokens: int | None, output_tokens: int | None, cost_estimate: float | None, prompt_summary: str | None, response_summary: str | None, failure_type: str | None, failure_detail: str | None, evidence: str | None) -> int:
+def record_model_run(conn, *, project: str, goal_id: Optional[str], run_id: Optional[str], task_id: Optional[str], provider: str, model_name: str, adapter: str, operation: str, status: str, duration_ms: Optional[int], input_tokens: Optional[int], output_tokens: Optional[int], cost_estimate: Optional[float], prompt_summary: Optional[str], response_summary: Optional[str], failure_type: Optional[str], failure_detail: Optional[str], evidence: Optional[str]) -> int:
     cur = conn.execute(
         """
         INSERT INTO model_runs(
@@ -3412,7 +3412,7 @@ def record_model_run(conn, *, project: str, goal_id: str | None, run_id: str | N
 
 def cmd_runtime_run_model(args: argparse.Namespace) -> None:
     adapter = model_adapter_name(args.provider, args.adapter)
-    adapter_result: dict[str, Any] = {}
+    adapter_result: Dict[str, Any] = {}
     started = time.perf_counter()
     if args.record_only:
         status = args.status or "not-run"
@@ -3591,8 +3591,8 @@ def cmd_runtime_run_subagent(args: argparse.Namespace) -> None:
     )
 
 
-def subagent_chain_for(roles: list[str]) -> list[dict[str, Any]]:
-    chain: list[dict[str, Any]] = []
+def subagent_chain_for(roles: List[str]) -> list[Dict[str, Any]]:
+    chain: list[Dict[str, Any]] = []
     for index, role in enumerate(roles):
         handoff_to = roles[index + 1] if index + 1 < len(roles) else None
         boundary = {
@@ -3617,7 +3617,7 @@ def subagent_chain_for(roles: list[str]) -> list[dict[str, Any]]:
 def cmd_runtime_plan_subagents(args: argparse.Namespace) -> None:
     roles = args.role or ["planner", "executor", "reviewer", "verifier"]
     chain = subagent_chain_for(roles)
-    created: list[dict[str, Any]] = []
+    created: list[Dict[str, Any]] = []
     with connect(args.db) as conn:
         ensure_initialized(conn, args.schema)
         if args.goal_id:
@@ -3718,8 +3718,8 @@ def cmd_runtime_plan_subagents(args: argparse.Namespace) -> None:
     print_json({"ok": True, "project": args.project, "subagents": created})
 
 
-def build_review_findings(diff_text: str) -> list[dict[str, str]]:
-    findings: list[dict[str, str]] = []
+def build_review_findings(diff_text: str) -> list[Dict[str, str]]:
+    findings: list[Dict[str, str]] = []
     if not diff_text.strip():
         return findings
     if re.search(r"(?i)(api[_-]?key|secret|token|password)\s*[=:]", diff_text):
@@ -3754,7 +3754,7 @@ def cmd_runtime_run_subagent_role(args: argparse.Namespace) -> None:
     status = "completed"
     failure_type = None
     output_summary = ""
-    evidence_payload: dict[str, Any] = {"role": args.role}
+    evidence_payload: Dict[str, Any] = {"role": args.role}
 
     if args.role == "reviewer":
         if args.diff_text is not None:
@@ -3885,9 +3885,9 @@ def cmd_runtime_run_subagent_role(args: argparse.Namespace) -> None:
 
 def evaluate_host_capabilities(
     host_type: str,
-    declared_capabilities: list[str],
-    required_capabilities: list[str] | None = None,
-) -> dict[str, Any]:
+    declared_capabilities: List[str],
+    required_capabilities: Optional[List[str]] = None,
+) -> Dict[str, Any]:
     protocol = set(HOST_CAPABILITY_PROTOCOL.get(host_type, set()))
     declared = set(declared_capabilities)
     required = set(required_capabilities or [])
@@ -3910,7 +3910,7 @@ def evaluate_host_capabilities(
 
 def cmd_runtime_register_adapter(args: argparse.Namespace) -> None:
     capabilities = args.capability or []
-    issues: list[str] = []
+    issues: List[str] = []
     if not capabilities:
         issues.append("missing capability declaration")
     capability_evaluation = evaluate_host_capabilities(args.host_type, capabilities, args.require_capability)
@@ -3997,7 +3997,7 @@ def cmd_runtime_register_adapter(args: argparse.Namespace) -> None:
 
 def cmd_runtime_detect_host_adapter(args: argparse.Namespace) -> None:
     required = args.require_capability or []
-    adapters: list[dict[str, Any]] = []
+    adapters: list[Dict[str, Any]] = []
     with connect(args.db) as conn:
         ensure_initialized(conn, args.schema)
         rows = conn.execute(
@@ -4048,7 +4048,7 @@ def cmd_runtime_detect_host_adapter(args: argparse.Namespace) -> None:
     )
 
 
-def count_retries(rows: list[sqlite3.Row], key_fields: tuple[str, ...], status_field: str) -> int:
+def count_retries(rows: list[sqlite3.Row], key_fields: Tuple[str, ...], status_field: str) -> int:
     attempts: dict[tuple[Any, ...], int] = {}
     retries = 0
     for row in rows:
@@ -4061,7 +4061,7 @@ def count_retries(rows: list[sqlite3.Row], key_fields: tuple[str, ...], status_f
     return retries
 
 
-def calculate_runtime_metrics(conn, project: str, goal_id: str | None = None, run_id: str | None = None, docs_freshness: dict[str, Any] | None = None) -> dict[str, Any]:
+def calculate_runtime_metrics(conn, project: str, goal_id: Optional[str] = None, run_id: Optional[str] = None, docs_freshness: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     goal_clause = " AND goal_id = ?" if goal_id else ""
     run_clause = " AND run_id = ?" if run_id else ""
     params: list[Any] = [project] + ([goal_id] if goal_id else []) + ([run_id] if run_id else [])
@@ -4163,7 +4163,7 @@ def cmd_runtime_metrics(args: argparse.Namespace) -> None:
     print_json({"ok": True, "project": args.project, "scope": scope, "id": metric_id, "metrics": metrics})
 
 
-def scoped_rows(conn, table: str, project: str, goal_id: str | None, run_id: str | None, order_column: str = "created_at") -> list[dict[str, Any]]:
+def scoped_rows(conn, table: str, project: str, goal_id: Optional[str], run_id: Optional[str], order_column: str = "created_at") -> list[Dict[str, Any]]:
     where = ["project = ?"]
     params: list[Any] = [project]
     columns = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
@@ -4185,14 +4185,14 @@ def stable_json_hash(value: Any) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def trace_time_value(item: dict[str, Any]) -> str:
+def trace_time_value(item: Dict[str, Any]) -> str:
     for key in ("created_at", "updated_at", "validated_at", "registered_at", "exported_at", "ran_at", "completed_at", "started_at"):
         if item.get(key):
             return str(item[key])
     return ""
 
 
-def trace_timeline(trace: dict[str, Any]) -> list[dict[str, Any]]:
+def trace_timeline(trace: Dict[str, Any]) -> list[Dict[str, Any]]:
     sources = [
         ("goal", [trace["goal"]] if trace.get("goal") else []),
         ("run", [trace["run"]] if trace.get("run") else []),
@@ -4207,7 +4207,7 @@ def trace_timeline(trace: dict[str, Any]) -> list[dict[str, Any]]:
         ("event", trace.get("events", [])),
         ("recovery", trace.get("recoveries", [])),
     ]
-    timeline: list[dict[str, Any]] = []
+    timeline: list[Dict[str, Any]] = []
     for source, rows in sources:
         for row in rows:
             if not row:
@@ -4228,7 +4228,7 @@ def trace_timeline(trace: dict[str, Any]) -> list[dict[str, Any]]:
     return sorted(timeline, key=lambda item: (item["at"] or "", item["source"], str(item["id"] or "")))
 
 
-def build_runtime_trace(conn, project: str, goal_id: str | None = None, run_id: str | None = None) -> dict[str, Any]:
+def build_runtime_trace(conn, project: str, goal_id: Optional[str] = None, run_id: Optional[str] = None) -> Dict[str, Any]:
     run = None
     context = None
     if run_id:
@@ -4310,13 +4310,13 @@ def cmd_runtime_trace(args: argparse.Namespace) -> None:
     print_json({"ok": True, "id": trace_id, "trace": trace})
 
 
-def check_required_paths(root: Path) -> tuple[str, list[str]]:
+def check_required_paths(root: Path) -> tuple[str, List[str]]:
     required_dirs = ["context", "rules", "skills", "tools", "workflows", "memory", "scripts", "tests"]
     missing = [path for path in required_dirs if not (root / path).is_dir()]
     return ("passed" if not missing else "failed", [f"missing directory: {path}" for path in missing])
 
 
-def check_agents_file(root: Path) -> tuple[str, list[str]]:
+def check_agents_file(root: Path) -> tuple[str, List[str]]:
     agents_path = root / "AGENTS.md"
     if not agents_path.exists():
         return "failed", ["missing AGENTS.md"]
@@ -4326,14 +4326,14 @@ def check_agents_file(root: Path) -> tuple[str, list[str]]:
     return ("passed" if not missing else "failed", [f"AGENTS.md missing section: {term}" for term in missing])
 
 
-def check_rules(root: Path) -> tuple[str, list[str]]:
+def check_rules(root: Path) -> tuple[str, List[str]]:
     rules_dir = root / "rules"
     required_rules = ["coding-style.md", "testing.md", "change-policy.md", "agent-runtime.md", "security-hardening.md"]
     missing = [name for name in required_rules if not (rules_dir / name).exists()]
     return ("passed" if not missing else "failed", [f"missing rule: {name}" for name in missing])
 
 
-def check_skills(root: Path) -> tuple[str, list[str]]:
+def check_skills(root: Path) -> tuple[str, List[str]]:
     manifests = validate_skill_runtime(root / "skills")
     if not manifests:
         return "failed", ["no skills found"]
@@ -4344,7 +4344,7 @@ def check_skills(root: Path) -> tuple[str, list[str]]:
     return ("passed" if not issues else "failed", issues)
 
 
-def check_memory(root: Path, conn) -> tuple[str, list[str]]:
+def check_memory(root: Path, conn) -> tuple[str, List[str]]:
     issues = []
     if not (root / "memory" / "schema.sql").exists():
         issues.append("missing memory/schema.sql")
@@ -4358,7 +4358,7 @@ def check_memory(root: Path, conn) -> tuple[str, list[str]]:
     return ("passed" if not issues else "failed", issues)
 
 
-def check_runtime(root: Path, conn) -> tuple[str, list[str]]:
+def check_runtime(root: Path, conn) -> tuple[str, List[str]]:
     required_tables = [
         "runtime_runs",
         "agent_goals",
@@ -4381,7 +4381,7 @@ def check_runtime(root: Path, conn) -> tuple[str, list[str]]:
     return ("passed" if not issues else "failed", issues)
 
 
-def check_bootstrap(root: Path) -> tuple[str, list[str]]:
+def check_bootstrap(root: Path) -> tuple[str, List[str]]:
     issues = []
     installer = root / "scripts" / "agent-os.py"
     if not installer.exists():
@@ -4395,7 +4395,7 @@ def check_bootstrap(root: Path) -> tuple[str, list[str]]:
     return ("passed" if not issues else "failed", issues)
 
 
-def check_policy_pack_health(root: Path) -> tuple[str, list[str]]:
+def check_policy_pack_health(root: Path) -> tuple[str, List[str]]:
     issues = []
     packs_dir = root / "policy-packs"
     if not packs_dir.exists():
@@ -4411,7 +4411,7 @@ def check_policy_pack_health(root: Path) -> tuple[str, list[str]]:
     return ("passed" if not issues else "failed", issues)
 
 
-def check_security_health(root: Path) -> tuple[str, list[str]]:
+def check_security_health(root: Path) -> tuple[str, List[str]]:
     issues = []
     if not (root / "rules" / "security-hardening.md").exists():
         issues.append("missing rules/security-hardening.md")
@@ -4421,7 +4421,7 @@ def check_security_health(root: Path) -> tuple[str, list[str]]:
     return ("passed" if not issues else "failed", issues)
 
 
-def check_db_writable(db_path: Path, schema_path: Path) -> tuple[str, list[str]]:
+def check_db_writable(db_path: Path, schema_path: Path) -> tuple[str, List[str]]:
     issues = []
     try:
         with connect(db_path) as conn:
@@ -4437,7 +4437,7 @@ def check_db_writable(db_path: Path, schema_path: Path) -> tuple[str, list[str]]
 
 def cmd_runtime_doctor(args: argparse.Namespace) -> None:
     root = args.root.resolve() if args.root else ROOT
-    checks: list[dict[str, Any]] = []
+    checks: list[Dict[str, Any]] = []
     status, issues = check_required_paths(root)
     checks.append({"name": "directories", "status": status, "issues": issues})
     status, issues = check_agents_file(root)
@@ -4497,7 +4497,7 @@ def read_agent_os_version(root: Path = ROOT) -> str:
     return version_path.read_text(encoding="utf-8", errors="ignore").strip() or "unknown"
 
 
-def read_db_schema_version(db_path: Path, schema_path: Path) -> str | None:
+def read_db_schema_version(db_path: Path, schema_path: Path) -> Optional[str]:
     if not db_path.exists():
         return None
     with connect(db_path) as conn:
@@ -4592,11 +4592,11 @@ def cmd_runtime_migrate(args: argparse.Namespace) -> None:
     )
 
 
-def dashboard_rows(conn, query: str, params: tuple[Any, ...]) -> list[dict[str, Any]]:
+def dashboard_rows(conn, query: str, params: tuple[Any, ...]) -> list[Dict[str, Any]]:
     return [row_to_dict(row) for row in conn.execute(query, params).fetchall()]
 
 
-def build_dashboard_data(conn, project: str, limit: int = 20) -> dict[str, Any]:
+def build_dashboard_data(conn, project: str, limit: int = 20) -> Dict[str, Any]:
     return {
         "project": project,
         "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -4628,7 +4628,7 @@ def build_dashboard_data(conn, project: str, limit: int = 20) -> dict[str, Any]:
     }
 
 
-def render_dashboard_table(title: str, rows: list[dict[str, Any]]) -> str:
+def render_dashboard_table(title: str, rows: list[Dict[str, Any]]) -> str:
     if not rows:
         return f"<section><h2>{html.escape(title)}</h2><p class=\"empty\">暂无记录</p></section>"
     columns = list(rows[0].keys())
@@ -4640,7 +4640,7 @@ def render_dashboard_table(title: str, rows: list[dict[str, Any]]) -> str:
     return f"<section><h2>{html.escape(title)}</h2><table><thead><tr>{header}</tr></thead><tbody>{''.join(body_rows)}</tbody></table></section>"
 
 
-def render_dashboard_html(data: dict[str, Any]) -> str:
+def render_dashboard_html(data: Dict[str, Any]) -> str:
     sections = [
         render_dashboard_table("目标", data["goals"]),
         render_dashboard_table("运行", data["runs"]),
@@ -4721,17 +4721,17 @@ def cmd_runtime_dashboard(args: argparse.Namespace) -> None:
     )
 
 
-def average(values: list[float]) -> float | None:
+def average(values: list[float]) -> Optional[float]:
     return sum(values) / len(values) if values else None
 
 
-def parse_version_parts(version: str | None) -> tuple[int, ...]:
+def parse_version_parts(version: Optional[str]) -> Tuple[int, ...]:
     if not version:
         return ()
     return tuple(int(part) for part in re.findall(r"\d+", version)[:4])
 
 
-def compare_versions(current: str | None, expected: str | None) -> int:
+def compare_versions(current: Optional[str], expected: Optional[str]) -> int:
     current_parts = parse_version_parts(current)
     expected_parts = parse_version_parts(expected)
     max_len = max(len(current_parts), len(expected_parts), 1)
@@ -4742,7 +4742,7 @@ def compare_versions(current: str | None, expected: str | None) -> int:
     return -1 if current_parts < expected_parts else 1
 
 
-def sequence_points(rows: list[dict[str, Any]], field: str) -> list[dict[str, Any]]:
+def sequence_points(rows: list[Dict[str, Any]], field: str) -> list[Dict[str, Any]]:
     ordered = list(reversed(rows))
     points = []
     for index, row in enumerate(ordered, start=1):
@@ -4753,8 +4753,8 @@ def sequence_points(rows: list[dict[str, Any]], field: str) -> list[dict[str, An
     return points
 
 
-def cluster_failures(snapshots: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    clusters: dict[str, dict[str, Any]] = {}
+def cluster_failures(snapshots: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
+    clusters: dict[str, Dict[str, Any]] = {}
     for row in snapshots:
         payload = json.loads(row.get("metrics_json") or "{}")
         if row.get("failure_rate"):
@@ -4772,7 +4772,7 @@ def cluster_failures(snapshots: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(clusters.values(), key=lambda item: (-item["count"], item["type"]))
 
 
-def dashboard_data_source(data: dict[str, Any]) -> dict[str, Any]:
+def dashboard_data_source(data: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "kind": "vscode-dashboard-data",
         "project": data["project"],
@@ -4833,7 +4833,7 @@ def cmd_runtime_quality_trends(args: argparse.Namespace) -> None:
     print_json(report)
 
 
-def load_policy_pack(pack_file: Path) -> dict[str, Any]:
+def load_policy_pack(pack_file: Path) -> Dict[str, Any]:
     try:
         data = json.loads(pack_file.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -4880,7 +4880,7 @@ def policy_state_path(root: Path) -> Path:
     return root / "policy-packs" / ".enabled.json"
 
 
-def load_policy_state(root: Path) -> dict[str, Any]:
+def load_policy_state(root: Path) -> Dict[str, Any]:
     state_path = policy_state_path(root)
     if not state_path.exists():
         return {"enabled": [], "overrides": {}}
@@ -4895,19 +4895,19 @@ def load_policy_state(root: Path) -> dict[str, Any]:
     return data
 
 
-def write_policy_state(root: Path, state: dict[str, Any]) -> None:
+def write_policy_state(root: Path, state: Dict[str, Any]) -> None:
     path = policy_state_path(root)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(state, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
 
 
-def all_policy_packs(packs_dir: Path) -> list[dict[str, Any]]:
+def all_policy_packs(packs_dir: Path) -> list[Dict[str, Any]]:
     if not packs_dir.exists():
         return []
     return [load_policy_pack(pack_file) for pack_file in sorted(packs_dir.glob("*/policy-pack.json"))]
 
 
-def policy_pack_conflicts(packs: list[dict[str, Any]], enabled: list[str]) -> list[str]:
+def policy_pack_conflicts(packs: list[Dict[str, Any]], enabled: List[str]) -> List[str]:
     by_name = {pack["name"]: pack for pack in packs}
     issues = []
     for name in enabled:
@@ -4971,7 +4971,7 @@ def cmd_runtime_policy_packs(args: argparse.Namespace) -> None:
     )
 
 
-def load_security_ignore_patterns(root: Path) -> list[str]:
+def load_security_ignore_patterns(root: Path) -> List[str]:
     ignore_file = root / ".agent-os-security-ignore"
     if not ignore_file.exists():
         return []
@@ -4983,7 +4983,7 @@ def load_security_ignore_patterns(root: Path) -> list[str]:
     return patterns
 
 
-def is_ignored_security_path(path: Path, root: Path, patterns: list[str]) -> bool:
+def is_ignored_security_path(path: Path, root: Path, patterns: List[str]) -> bool:
     rel = path.relative_to(root).as_posix()
     return any(fnmatch.fnmatch(rel, pattern) or fnmatch.fnmatch(path.name, pattern) for pattern in patterns)
 
@@ -4996,7 +4996,7 @@ def shannon_entropy(value: str) -> float:
     return -sum((count / length) * math.log2(count / length) for count in counts.values())
 
 
-def high_entropy_findings(line: str) -> list[dict[str, Any]]:
+def high_entropy_findings(line: str) -> list[Dict[str, Any]]:
     findings = []
     for match in HIGH_ENTROPY_VALUE_RE.finditer(line):
         value = match.group(1)
@@ -5006,9 +5006,9 @@ def high_entropy_findings(line: str) -> list[dict[str, Any]]:
     return findings
 
 
-def iter_security_scan_files(root: Path, max_files: int, ignore_patterns: list[str] | None = None) -> list[Path]:
+def iter_security_scan_files(root: Path, max_files: int, ignore_patterns: Optional[List[str]] = None) -> List[Path]:
     ignore_patterns = ignore_patterns or []
-    files: list[Path] = []
+    files: List[Path] = []
     for path in root.rglob("*"):
         if len(files) >= max_files:
             break
@@ -5027,7 +5027,7 @@ def iter_security_scan_files(root: Path, max_files: int, ignore_patterns: list[s
     return files
 
 
-def scan_secrets(root: Path, max_files: int = 2000) -> dict[str, Any]:
+def scan_secrets(root: Path, max_files: int = 2000) -> Dict[str, Any]:
     findings = []
     ignore_patterns = load_security_ignore_patterns(root)
     files = iter_security_scan_files(root, max_files, ignore_patterns)
@@ -5060,7 +5060,7 @@ def scan_secrets(root: Path, max_files: int = 2000) -> dict[str, Any]:
     return {"checked_files": len(files), "ignored_patterns": ignore_patterns, "findings": findings}
 
 
-def assess_dangerous_command(command: str | None) -> dict[str, Any]:
+def assess_dangerous_command(command: Optional[str]) -> Dict[str, Any]:
     if not command:
         return {"command": None, "risk": "none", "blocked": False, "matches": []}
     matches = [{"type": label, "pattern": pattern.pattern} for pattern, label in DANGEROUS_COMMAND_PATTERNS if pattern.search(command)]
@@ -5073,7 +5073,7 @@ def assess_dangerous_command(command: str | None) -> dict[str, Any]:
     }
 
 
-def permission_policy_report() -> dict[str, Any]:
+def permission_policy_report() -> Dict[str, Any]:
     return {
         "tool_allowlist": list(SAFE_VERIFICATION_PREFIXES),
         "allow_unsafe_requires_user_approval": True,
@@ -5087,7 +5087,7 @@ def permission_policy_report() -> dict[str, Any]:
     }
 
 
-def sandbox_strategy_report() -> dict[str, Any]:
+def sandbox_strategy_report() -> Dict[str, Any]:
     return {
         "workspace_bounded_execution": True,
         "ignore_local_runtime_state": ["memory/index.db", "memory/index.db-*", "sessions/", "logs/", "temp/"],
@@ -5123,7 +5123,7 @@ def cmd_runtime_security_check(args: argparse.Namespace) -> None:
     print_json(report)
 
 
-def distribution_channels(root: Path) -> list[dict[str, Any]]:
+def distribution_channels(root: Path) -> list[Dict[str, Any]]:
     repo = str(root)
     return [
         {
@@ -5168,7 +5168,7 @@ def cmd_runtime_distribution(args: argparse.Namespace) -> None:
     print_json({"ok": ok, "root": str(root), "channels": channels})
 
 
-def vscode_integration_protocol(root: Path, project: str) -> dict[str, Any]:
+def vscode_integration_protocol(root: Path, project: str) -> Dict[str, Any]:
     return {
         "mode": "workspace-injection",
         "project": project,
@@ -5205,7 +5205,7 @@ def cmd_runtime_vscode_protocol(args: argparse.Namespace) -> None:
     print_json({"ok": True, "root": str(root), "protocol": protocol})
 
 
-def team_workspace_report(root: Path) -> dict[str, Any]:
+def team_workspace_report(root: Path) -> Dict[str, Any]:
     policy_state = load_policy_state(root)
     packs = all_policy_packs(root / "policy-packs")
     bootstrap_status, bootstrap_issues = check_bootstrap(root)
@@ -5232,7 +5232,7 @@ def cmd_runtime_team_workspace(args: argparse.Namespace) -> None:
     print_json({"ok": report["ready"], "root": str(root), "team_workspace": report})
 
 
-def release_checklist(root: Path, db_path: Path, schema_path: Path) -> dict[str, Any]:
+def release_checklist(root: Path, db_path: Path, schema_path: Path) -> Dict[str, Any]:
     with connect(db_path) as conn:
         ensure_initialized(conn, schema_path)
         memory_status, memory_issues = check_memory(root, conn)
@@ -5407,7 +5407,7 @@ def cmd_runtime_run_tool(args: argparse.Namespace) -> None:
     print_json({"ok": result == "passed" or result == "not-run", "id": tool_id, "project": args.project, "tool_type": tool_type, "adapter": adapter, "status": result, "exit_code": exit_code, "duration_ms": duration_ms, "failure_type": failure_type, "failure_detail": failure_detail, "stdout_summary": stdout_summary})
 
 
-def classify_root_cause(source_type: str, failure_type: str | None, failure_detail: str | None, summary: str) -> str:
+def classify_root_cause(source_type: str, failure_type: Optional[str], failure_detail: Optional[str], summary: str) -> str:
     if source_type == "success":
         return "Successful execution path is stable."
     if source_type == "partial":
@@ -5426,15 +5426,15 @@ def build_reflection_record(
     project: str,
     source_type: str,
     summary: str,
-    evidence: str | None,
-    goal_id: str | None = None,
-    run_id: str | None = None,
-    failure_type: str | None = None,
-    failure_detail: str | None = None,
-    pattern: str | None = None,
-    next_step: str | None = None,
+    evidence: Optional[str],
+    goal_id: Optional[str] = None,
+    run_id: Optional[str] = None,
+    failure_type: Optional[str] = None,
+    failure_detail: Optional[str] = None,
+    pattern: Optional[str] = None,
+    next_step: Optional[str] = None,
     confidence: float = 0.7,
-) -> dict[str, Any]:
+) -> Dict[str, Any]:
     root_cause = classify_root_cause(source_type, failure_type, failure_detail, summary)
     inferred_pattern = pattern
     inferred_next_step = next_step
@@ -5466,7 +5466,7 @@ def build_reflection_record(
     }
 
 
-def record_reflection(conn, reflection: dict[str, Any]) -> int:
+def record_reflection(conn, reflection: Dict[str, Any]) -> int:
     cur = conn.execute(
         """
         INSERT INTO reflections(
@@ -5490,7 +5490,7 @@ def record_reflection(conn, reflection: dict[str, Any]) -> int:
     return cur.lastrowid
 
 
-def reflection_to_memory_item(reflection: dict[str, Any]) -> dict[str, Any]:
+def reflection_to_memory_item(reflection: Dict[str, Any]) -> Dict[str, Any]:
     title = f"Reflection: {reflection['root_cause'][:80]}"
     summary = reflection["summary"]
     pattern = reflection.get("pattern")
@@ -5513,7 +5513,7 @@ def reflection_to_memory_item(reflection: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def reflection_to_candidate(reflection: dict[str, Any], memory_item_id: int | None = None) -> dict[str, Any] | None:
+def reflection_to_candidate(reflection: Dict[str, Any], memory_item_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
     if reflection["source_type"] not in {"failure", "partial"}:
         return None
     pattern = reflection.get("pattern") or reflection["root_cause"]
@@ -5537,7 +5537,7 @@ def reflection_to_candidate(reflection: dict[str, Any], memory_item_id: int | No
     }
 
 
-def learn_from_reflection(conn, reflection: dict[str, Any]) -> dict[str, Any]:
+def learn_from_reflection(conn, reflection: Dict[str, Any]) -> Dict[str, Any]:
     memory_item = reflection_to_memory_item(reflection)
     cur = conn.execute(
         """
@@ -5636,15 +5636,15 @@ def learn_from_reflection(conn, reflection: dict[str, Any]) -> dict[str, Any]:
 def infer_reflection_from_verification(
     *,
     project: str,
-    goal_id: str | None,
-    run_id: str | None,
-    scope: str | None,
+    goal_id: Optional[str],
+    run_id: Optional[str],
+    scope: Optional[str],
     result: str,
-    failure_type: str | None,
-    failure_detail: str | None,
-    stdout_summary: str | None,
-    command: str | None,
-) -> dict[str, Any] | None:
+    failure_type: Optional[str],
+    failure_detail: Optional[str],
+    stdout_summary: Optional[str],
+    command: Optional[str],
+) -> Optional[Dict[str, Any]]:
     if result not in {"failed", "blocked"}:
         return None
     summary = f"{scope or 'verification'} failed with {failure_type or 'unknown'}"
@@ -6042,7 +6042,7 @@ def cmd_runtime_final_check(args: argparse.Namespace) -> None:
     verification = {row["result"]: 0 for row in verifications}
     for row in verifications:
         verification[row["result"]] = verification.get(row["result"], 0) + 1
-    missing: list[str] = []
+    missing: List[str] = []
     if not stage_inputs or not any(stage["name"] == "plan" for stage in stage_inputs):
         missing.append("pipeline plan stage")
     if not any(stage["name"] == "observe" for stage in stage_inputs):
@@ -6396,7 +6396,7 @@ def cmd_runtime_run(args: argparse.Namespace) -> None:
                 if len(layer_hits[layer]) < fake_scan_args.max_hits:
                     layer_hits[layer].append(workspace_relative(path).as_posix())
 
-    memory_hits: list[str] = []
+    memory_hits: List[str] = []
     with connect(args.db) as conn:
         ensure_initialized(conn, args.schema)
         if args.use_memory:
@@ -6820,7 +6820,7 @@ def cmd_runtime_orchestrate(args: argparse.Namespace) -> None:
         manifests = validate_skill_runtime(ROOT / "skills", None)
         dependency_graph = build_skill_dependency_graph(manifests)
         conflicts = detect_skill_conflicts(manifests, [manifest["skill_name"] for manifest in manifests])
-        skill_blockers: list[str] = []
+        skill_blockers: List[str] = []
         for manifest in manifests:
             if manifest["status"] != "valid":
                 skill_blockers.append(f"{manifest['skill_name']}: {manifest['status']}")
@@ -8195,7 +8195,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Optional[List[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     args.func(args)
