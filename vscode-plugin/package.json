@@ -26,7 +26,9 @@
     "onCommand:agentOs.injectWorkspace",
     "onCommand:agentOs.uninstallWorkspace",
     "onCommand:agentOs.refreshStatus",
-    "onCommand:agentOs.openOverview"
+    "onCommand:agentOs.openOverview",
+    "onCommand:agentOs.configureIntentCompiler",
+    "onCommand:agentOs.testIntentCompiler"
   ],
   "contributes": {
     "commands": [
@@ -45,8 +47,42 @@
       {
         "command": "agentOs.openOverview",
         "title": "Agent OS：打开总览"
+      },
+      {
+        "command": "agentOs.configureIntentCompiler",
+        "title": "Agent OS：配置意图编译器"
+      },
+      {
+        "command": "agentOs.testIntentCompiler",
+        "title": "Agent OS：测试意图编译器"
       }
     ],
+    "configuration": {
+      "title": "Agent OS",
+      "properties": {
+        "agentOS.intentCompiler.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "启用 LLM Semantic Compiler。未启用或调用失败时使用本地规则算法。"
+        },
+        "agentOS.intentCompiler.provider": {
+          "type": "string",
+          "default": "custom",
+          "enum": ["custom", "openai", "anthropic", "google", "qwen", "deepseek"],
+          "description": "LLM Provider 标识，仅用于状态展示和运行记录。"
+        },
+        "agentOS.intentCompiler.baseUrl": {
+          "type": "string",
+          "default": "",
+          "description": "OpenAI-compatible API base URL，例如 https://api.openai.com/v1。"
+        },
+        "agentOS.intentCompiler.model": {
+          "type": "string",
+          "default": "",
+          "description": "用于 Mission IR 编译的模型名称。"
+        }
+      }
+    },
     "viewsContainers": {
       "activitybar": [
         {

@@ -43,14 +43,54 @@ python <your-project>/.agent-os/scripts/agent-os.py version --root <your-project
 | --- | --- |
 | Context Gate | 识别项目、技术栈、任务层、业务影响、证据和风险 |
 | Workflow Gate | 为简单修改、Bug、功能、API、Agent OS 演化选择执行流程 |
+| Mutation Authorization Gate | 区分只读排查和授权修改，排查/分析/定位原因默认不改文件 |
+| Mission IR Compiler | 将自然语言编译为 Mission IR；可使用本地规则或插件配置的 LLM |
+| Mission Optimizer | 清洗、校验、归一化 Mission IR，并收紧权限生成 Locked Mission IR |
+| Intent Runtime | 记录结构化意图、授权状态、置信度、风险、允许动作和阻断动作 |
+| Execution Gate | 写入、补丁、提交、部署、memory/docs 更新前做硬门校验 |
+| Feedback Loop | 记录反馈、检测 drift、重新锚定用户意图，并保存计划版本 |
+| Event Bus | 事件消息可发布、拉取、确认，支持 Agent Kernel 与 runtime 服务之间闭环 |
+| Scheduler | 维护可执行队列，按优先级、依赖、资源占用选择下一步 |
+| Resource Manager | 用资源租约控制 workspace、shell、git、model、browser 等关键资源占用 |
+| Quality Score | 根据验证、意图漂移、调度、文档、恢复、记忆和风险计算质量分 |
+| Benchmark | 记录性能/质量基准、阈值、方向和回归状态，并接入 final-check |
+| Runtime Self-Audit | 自动发现未关闭的 action、drift、事件、调度、资源、验证缺口 |
+| Compatibility Matrix | 汇总模型 provider、IDE/host adapter、入口文件和缺失能力 |
+| Governance Proposal | 规则、skill 升级只能进入人工 review，不自动提升 |
 | Planning Gate | 决定直接执行、短计划还是完整计划 |
 | Capability Discovery | 判断功能链路是完整、半套、断链、缺失还是未确认 |
-| Agent Runtime | 记录 goal、task、policy、verification、recovery、trace |
+| Agent Runtime | 记录 goal、task、policy、intent、action、feedback、verification、recovery、trace |
 | Documentation Gate | 判断 README or docs、`docs/agent-os/`、memory 是否需要同步 |
 | Memory Gate | 把可复用经验写入 Markdown memory / SQLite memory |
 | Evolution Policy | 只记录候选升级，不自动修改 rules / skills / AGENTS |
 
-核心目标不是“多写几个 skill”，而是让 AI Agent 在项目内按可验证、可回滚、可审查的方式工作。
+核心目标不是“多写几个 skill”，而是让 AI Agent 在项目内按可验证、可回滚、可审查、尊重用户意图边界的方式工作。
+
+例如用户只说“排查一下”“分析一下”“看看为什么”，Agent OS 会把任务当成只读诊断。即使后续发现候选修复，写文件、打补丁、提交、部署、更新 memory/docs 也必须先通过 Execution Gate；没有明确授权时会被记录为 blocked，而不是直接执行。
+
+## Mission IR
+
+Agent OS 不直接把自然语言交给 Runtime 执行，而是先编译成 Mission IR。
+
+```text
+User Request
+  -> Semantic Compiler
+  -> Draft Mission IR
+  -> Validator / Normalizer / Optimizer
+  -> Locked Mission IR
+  -> Execution Gate
+  -> Runtime
+```
+
+默认使用内置规则算法。VSCode 插件可配置 OpenAI-compatible LLM Provider 的 `apiKey`、`baseUrl` 和 `model`，用于增强语义编译。LLM 只负责生成 Draft Mission IR；最终权限仍由 Agent OS 的 Validator、Optimizer 和 Execution Gate 决定。
+
+```bash
+python scripts/agent-runtime.py runtime-compile-mission \
+  --project my-project \
+  --request "用户反馈第一次检测原创度0，第二次检测就好了，你好好排查一下"
+```
+
+只读诊断会被锁定为 `diagnose + readonly + allowWrite=false`。如果 LLM 超时、返回 Markdown 包裹、坏 JSON、字段不合规或上游 502，Runtime 会清洗和归一化；无法恢复时自动回退本地规则算法。
 
 ## 常用命令
 

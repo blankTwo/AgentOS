@@ -30,3 +30,4 @@ When evidence is insufficient:
 
 Do not turn guesses into code changes.
 
+Evidence sufficiency does not override mutation authorization. If the user asked only to diagnose, analyze, inspect, or locate the cause, report the evidence and recommended fix without editing files until the user approves mutation.

@@ -256,7 +256,7 @@ class AgentRuntimeCliTests(unittest.TestCase):
                 str(db_path),
             )
             self.assertEqual(version["agent_os_version"], "2.0.0")
-            self.assertEqual(version["expected_schema_version"], "15")
+            self.assertEqual(version["expected_schema_version"], "21")
             self.assertFalse(version["db_exists"])
             self.assertTrue(version["migration_required"])
 
@@ -277,7 +277,7 @@ class AgentRuntimeCliTests(unittest.TestCase):
             )
             self.assertTrue(migrated["ok"], migrated)
             self.assertTrue(migrated["applied"])
-            self.assertEqual(migrated["after_schema_version"], "15")
+            self.assertEqual(migrated["after_schema_version"], "21")
             self.assertIn("rollback_hint", migrated)
 
             after = self.run_cli(
@@ -286,7 +286,7 @@ class AgentRuntimeCliTests(unittest.TestCase):
                 str(db_path),
             )
             self.assertTrue(after["db_exists"])
-            self.assertEqual(after["db_schema_version"], "15")
+            self.assertEqual(after["db_schema_version"], "21")
             self.assertFalse(after["migration_required"])
 
             second = self.run_cli(
@@ -337,6 +337,65 @@ class AgentRuntimeCliTests(unittest.TestCase):
                 "--evidence",
                 "dashboard visible",
             )
+            self.run_cli(
+                "runtime-record",
+                "--db",
+                db,
+                "--kind",
+                "intent",
+                "--project",
+                "agent-os",
+                "--id",
+                "intent-dashboard",
+                "--summary",
+                "Dashboard intent",
+                "--intent-type",
+                "diagnosis",
+                "--mutation-authorization",
+                "read-only",
+            )
+            self.run_cli(
+                "runtime-record",
+                "--db",
+                db,
+                "--kind",
+                "action-proposal",
+                "--project",
+                "agent-os",
+                "--id",
+                "action-dashboard",
+                "--intent-id",
+                "intent-dashboard",
+                "--action-type",
+                "patch",
+                "--tool",
+                "patch.apply",
+                "--reason",
+                "Dashboard action",
+                "--status",
+                "blocked",
+            )
+            self.run_cli(
+                "runtime-record",
+                "--db",
+                db,
+                "--kind",
+                "drift",
+                "--project",
+                "agent-os",
+                "--intent-id",
+                "intent-dashboard",
+                "--proposal-id",
+                "action-dashboard",
+                "--drift-type",
+                "mutation",
+                "--expected",
+                "read-only",
+                "--actual",
+                "patch",
+                "--status",
+                "open",
+            )
             result = self.run_cli(
                 "runtime-dashboard",
                 "--db",
@@ -365,12 +424,16 @@ class AgentRuntimeCliTests(unittest.TestCase):
             self.assertTrue(data_output.exists())
             self.assertEqual(data_result["data_source"]["kind"], "vscode-dashboard-data")
             self.assertIn("records", data_result["data_source"])
+            for section in ("intents", "actions", "drifts", "feedback", "plans"):
+                self.assertIn(section, data_result["data_source"]["sections"])
             html_text = output.read_text(encoding="utf-8")
-            for heading in ("目标", "运行", "任务", "事件", "验证"):
+            for heading in ("目标", "运行", "任务", "事件", "意图", "动作", "漂移", "反馈", "计划版本", "验证"):
                 self.assertIn(heading, html_text)
             self.assertIn("goal-dashboard", html_text)
             self.assertIn("run-dashboard", html_text)
             self.assertIn("dashboard visible", html_text)
+            self.assertIn("intent-dashboard", html_text)
+            self.assertIn("action-dashboard", html_text)
 
     def test_detect_context_classifies_cross_layer_feature(self) -> None:
         result = self.run_cli(
@@ -386,6 +449,795 @@ class AgentRuntimeCliTests(unittest.TestCase):
         self.assertEqual(result["scale"], "L3")
         self.assertIn("Integration", result["task_layers"])
         self.assertIn("UI", result["task_layers"])
+
+    def test_detect_context_keeps_diagnosis_requests_read_only(self) -> None:
+        result = self.run_cli(
+            "runtime-detect-context",
+            "--request",
+            "用户反馈第一次检测原创度0 第二次检测就好了，你根据这个反馈好好排查一下",
+            "--files",
+            "apps/server/src/third_party/lj-api.service.ts",
+        )
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["intent"], "diagnosis")
+        self.assertEqual(result["mutation_authorization"], "read-only")
+        self.assertIn("Bugfix", result["task_layers"])
+        self.assertIn("mutation_authorization=read-only", result["evidence"])
+
+    def test_runtime_compile_mission_builtin_locks_read_only_diagnosis(self) -> None:
+        result = self.run_cli(
+            "runtime-compile-mission",
+            "--project",
+            "agent-os",
+            "--request",
+            "用户反馈第一次检测原创度0 第二次检测就好了，你根据这个反馈好好排查一下",
+            "--files",
+            "apps/server/src/third_party/lj-api.service.ts",
+        )
+        self.assertTrue(result["ok"], result)
+        self.assertTrue(result["locked"])
+        self.assertEqual(result["mission_ir"]["specVersion"], "mission-ir/v1")
+        self.assertEqual(result["mission_ir"]["mission"]["type"], "diagnose")
+        self.assertEqual(result["mission_ir"]["mission"]["mode"], "readonly")
+        self.assertTrue(result["mission_ir"]["constraints"]["readonly"])
+        self.assertFalse(result["mission_ir"]["constraints"]["allowWrite"])
+        self.assertEqual(result["runtime_mapping"]["intent_type"], "diagnosis")
+        self.assertEqual(result["runtime_mapping"]["mutation_authorization"], "read-only")
+
+    def test_runtime_compile_mission_normalizes_markdown_llm_output(self) -> None:
+        llm_response = """```json
+{
+  "specVersion": "mission-ir/v1",
+  "mission": {"type": "diagnose", "mode": "readonly"},
+  "intent": {"primary": "investigate first originality check returning zero", "confidence": 0.75, "ambiguity": "medium"},
+  "constraints": {"readonly": true, "allowWrite": false, "allowCommit": false, "allowDeploy": false, "requireApprovalBeforeMutation": true},
+  "deliverables": ["root_cause", "evidence", "conclusion", "reproduction_steps"],
+  "evidenceRequirements": {"required": true, "types": ["state_inspection", "timing_analysis"], "minimumBeforeAction": 3},
+  "successCriteria": ["identify_why_first_check_returns_zero"],
+  "clarification": ["which endpoint is affected"]
+}
+```"""
+        result = self.run_cli(
+            "runtime-compile-mission",
+            "--project",
+            "agent-os",
+            "--request",
+            "用户反馈第一次检测原创度0 第二次检测就好了，你根据这个反馈好好排查一下",
+            "--llm-response",
+            llm_response,
+        )
+        self.assertTrue(result["ok"], result)
+        mission_ir = result["mission_ir"]
+        self.assertEqual(mission_ir["source"]["compiler"], "provided-llm-output")
+        self.assertEqual(mission_ir["mission"]["mode"], "readonly")
+        self.assertFalse(mission_ir["constraints"]["allowWrite"])
+        self.assertIn("repair_plan", mission_ir["deliverables"])
+        self.assertIn("evidence", mission_ir["deliverables"])
+        self.assertIn("code_location", mission_ir["evidenceRequirements"]["types"])
+
+    def test_runtime_compile_mission_falls_back_when_llm_unavailable(self) -> None:
+        result = self.run_cli(
+            "runtime-compile-mission",
+            "--project",
+            "agent-os",
+            "--request",
+            "先帮我排查这个接口为什么返回500",
+            "--provider",
+            "custom",
+            "--base-url",
+            "http://127.0.0.1:9/v1",
+            "--api-key",
+            "test-key",
+            "--model",
+            "missing-model",
+            "--timeout",
+            "1",
+        )
+        self.assertTrue(result["ok"], result)
+        self.assertTrue(result["compiler_metadata"]["fallback"])
+        self.assertEqual(result["mission_ir"]["mission"]["type"], "diagnose")
+        self.assertFalse(result["mission_ir"]["constraints"]["allowWrite"])
+
+    def test_intent_runtime_blocks_read_only_mutation_and_records_loop_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = str(Path(tmp) / "runtime.db")
+            intent = self.run_cli(
+                "runtime-detect-intent",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--intent-id",
+                "intent-diagnosis",
+                "--request",
+                "用户反馈第一次检测原创度0 第二次检测就好了，你根据这个反馈好好排查一下",
+                "--files",
+                "apps/server/src/third_party/lj-api.service.ts",
+                "--record",
+            )
+            self.assertTrue(intent["ok"], intent)
+            self.assertEqual(intent["intent"]["intent_type"], "diagnosis")
+            self.assertEqual(intent["intent"]["mutation_authorization"], "read-only")
+            self.assertIn("patch", intent["intent"]["blocked_actions"])
+            self.assertEqual(intent["mission_ir"]["mission"]["type"], "diagnose")
+            self.assertFalse(intent["mission_ir"]["constraints"]["allowWrite"])
+
+            conn = sqlite3.connect(db)
+            try:
+                row = conn.execute(
+                    "SELECT mission_ir_json, compiler_metadata_json FROM intent_states WHERE id = ?",
+                    ("intent-diagnosis",),
+                ).fetchone()
+            finally:
+                conn.close()
+            self.assertIsNotNone(row)
+            self.assertIn('"specVersion": "mission-ir/v1"', row[0])
+            self.assertIn("builtin-rules", row[1])
+
+            registry = self.run_cli(
+                "runtime-tool-registry",
+                "--db",
+                db,
+                "--write-only",
+            )
+            registry_tools = {item["tool"] for item in registry["tools"]}
+            self.assertIn("patch.apply", registry_tools)
+            self.assertIn("memory.write", registry_tools)
+
+            validation = self.run_cli(
+                "runtime-validate-action",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--intent-id",
+                "intent-diagnosis",
+                "--action-type",
+                "patch",
+                "--target-paths",
+                "apps/server/src/third_party/lj-api.service.ts",
+                "--validation-plan",
+                "python -m unittest tests.test_agent_runtime",
+                "--record",
+            )
+            self.assertFalse(validation["ok"], validation)
+            self.assertEqual(validation["gate"]["decision"], "blocked")
+            self.assertIn("blocked-actions:patch,write", validation["gate"]["missing_requirements"])
+
+            proposal = self.run_cli(
+                "runtime-propose-action",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--id",
+                "action-readonly-patch",
+                "--intent-id",
+                "intent-diagnosis",
+                "--action-type",
+                "patch",
+                "--target-paths",
+                "apps/server/src/third_party/lj-api.service.ts",
+                "--reason",
+                "Patch attempt during diagnosis",
+                "--validation-plan",
+                "python -m unittest tests.test_agent_runtime",
+            )
+            self.assertFalse(proposal["ok"], proposal)
+            self.assertEqual(proposal["gate"]["decision"], "blocked")
+
+            blocked_tool = self.run_cli(
+                "runtime-run-tool",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--intent-id",
+                "intent-diagnosis",
+                "--action-type",
+                "patch",
+                "--tool",
+                "patch.apply",
+                "--tool-type",
+                "shell",
+                "--command",
+                "python -m py_compile scripts\\agent-runtime.py",
+                "--target-paths",
+                "apps/server/src/third_party/lj-api.service.ts",
+                "--validation-plan",
+                "python -m unittest tests.test_agent_runtime",
+            )
+            self.assertFalse(blocked_tool["ok"], blocked_tool)
+            self.assertEqual(blocked_tool["status"], "blocked")
+            self.assertEqual(blocked_tool["gate"]["decision"], "blocked")
+
+            side_effect = Path(tmp) / "blocked-side-effect.txt"
+            blocked_write = self.run_cli(
+                "runtime-run-tool",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--intent-id",
+                "intent-diagnosis",
+                "--action-type",
+                "patch",
+                "--tool",
+                "patch.apply",
+                "--tool-type",
+                "shell",
+                "--command",
+                f"Set-Content -LiteralPath '{side_effect}' -Value blocked",
+                "--target-paths",
+                "apps/server/src/third_party/lj-api.service.ts",
+                "--validation-plan",
+                "No source changes before user approval.",
+            )
+            self.assertFalse(blocked_write["ok"], blocked_write)
+            self.assertEqual(blocked_write["status"], "blocked")
+            self.assertFalse(side_effect.exists(), "Execution Gate must block shell side effects before execution")
+
+            feedback = self.run_cli(
+                "runtime-record-feedback",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--intent-id",
+                "intent-diagnosis",
+                "--proposal-id",
+                "action-readonly-patch",
+                "--confidence-delta",
+                "-0.1",
+                "--evidence-delta",
+                "new-evidence",
+                "--summary",
+                "A mutation was proposed while the user asked for diagnosis only.",
+            )
+            self.assertTrue(feedback["ok"], feedback)
+
+            drift = self.run_cli(
+                "runtime-detect-drift",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--intent-id",
+                "intent-diagnosis",
+                "--proposal-id",
+                "action-readonly-patch",
+                "--record",
+            )
+            self.assertFalse(drift["ok"], drift)
+            self.assertEqual(drift["drifts"][0]["drift_type"], "mutation")
+
+            reanchor = self.run_cli(
+                "runtime-reanchor",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--intent-id",
+                "intent-diagnosis",
+            )
+            self.assertTrue(reanchor["ok"], reanchor)
+            self.assertIn("Re-anchor", reanchor["prompt"])
+
+            plan = self.run_cli(
+                "runtime-revise-plan",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--intent-id",
+                "intent-diagnosis",
+                "--steps",
+                "1. Keep diagnosis read-only. 2. Collect upstream evidence. 3. Ask before fixing.",
+                "--validation",
+                "No source changes before user approval.",
+                "--status",
+                "active",
+            )
+            self.assertTrue(plan["ok"], plan)
+            self.assertEqual(plan["version"], 1)
+
+            listed_intents = self.run_cli(
+                "runtime-list",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--kind",
+                "intent",
+            )
+            self.assertEqual(listed_intents["results"][0]["id"], "intent-diagnosis")
+
+            listed_drifts = self.run_cli(
+                "runtime-list",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--kind",
+                "drift",
+                "--status",
+                "open",
+            )
+            self.assertEqual(listed_drifts["results"][0]["drift_type"], "mutation")
+
+            listed_plans = self.run_cli(
+                "runtime-list",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--kind",
+                "plan-version",
+                "--status",
+                "active",
+            )
+            self.assertEqual(listed_plans["results"][0]["version"], 1)
+
+    def test_approval_upgrades_read_only_intent_for_confirmed_fix(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = str(Path(tmp) / "runtime.db")
+            self.run_cli(
+                "runtime-detect-intent",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--intent-id",
+                "intent-approval",
+                "--request",
+                "先帮我排查这个接口为什么返回500",
+                "--files",
+                "server/api.ts",
+                "--record",
+            )
+            self.run_cli(
+                "runtime-propose-action",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--id",
+                "action-confirmed-patch",
+                "--intent-id",
+                "intent-approval",
+                "--action-type",
+                "patch",
+                "--target-paths",
+                "server/api.ts",
+                "--reason",
+                "Apply confirmed fix after user approval",
+                "--validation-plan",
+                "python -m py_compile server/api.ts",
+            )
+            approval = self.run_cli(
+                "runtime-approve-action",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--intent-id",
+                "intent-approval",
+                "--proposal-id",
+                "action-confirmed-patch",
+                "--approved-text",
+                "那你修一下",
+                "--approved-scope",
+                "server/api.ts",
+            )
+            self.assertTrue(approval["ok"], approval)
+
+            gate = self.run_cli(
+                "runtime-execution-gate",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--proposal-id",
+                "action-confirmed-patch",
+                "--user-approved",
+                "--validation-plan",
+                "python -m py_compile server/api.ts",
+            )
+            self.assertTrue(gate["ok"], gate)
+            self.assertEqual(gate["gate"]["decision"], "allowed")
+
+    def test_final_check_blocks_open_intent_loop_risks(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = str(Path(tmp) / "runtime.db")
+            self.run_cli(
+                "runtime-record",
+                "--db",
+                db,
+                "--kind",
+                "goal",
+                "--project",
+                "agent-os",
+                "--id",
+                "goal-intent-risk",
+                "--objective",
+                "Audit intent risk",
+            )
+            self.run_cli(
+                "runtime-record",
+                "--db",
+                db,
+                "--kind",
+                "policy",
+                "--project",
+                "agent-os",
+                "--goal-id",
+                "goal-intent-risk",
+                "--decision-type",
+                "execution-mode",
+                "--decision",
+                "direct",
+            )
+            self.run_cli(
+                "runtime-record",
+                "--db",
+                db,
+                "--kind",
+                "verification",
+                "--project",
+                "agent-os",
+                "--goal-id",
+                "goal-intent-risk",
+                "--scope",
+                "intent risk",
+                "--result",
+                "passed",
+            )
+            self.run_cli(
+                "runtime-record",
+                "--db",
+                db,
+                "--kind",
+                "goal",
+                "--project",
+                "agent-os",
+                "--id",
+                "other-goal",
+                "--objective",
+                "Other unrelated audit",
+            )
+            self.run_cli(
+                "runtime-record",
+                "--db",
+                db,
+                "--kind",
+                "intent",
+                "--project",
+                "agent-os",
+                "--goal-id",
+                "goal-intent-risk",
+                "--id",
+                "intent-risk",
+                "--summary",
+                "Read-only diagnosis",
+                "--intent-type",
+                "diagnosis",
+                "--mutation-authorization",
+                "read-only",
+            )
+            self.run_cli(
+                "runtime-record",
+                "--db",
+                db,
+                "--kind",
+                "action-proposal",
+                "--project",
+                "agent-os",
+                "--goal-id",
+                "goal-intent-risk",
+                "--id",
+                "action-risk",
+                "--intent-id",
+                "intent-risk",
+                "--action-type",
+                "patch",
+                "--tool",
+                "patch.apply",
+                "--reason",
+                "Unauthorized mutation",
+                "--status",
+                "blocked",
+            )
+            self.run_cli(
+                "runtime-record",
+                "--db",
+                db,
+                "--kind",
+                "drift",
+                "--project",
+                "agent-os",
+                "--intent-id",
+                "intent-risk",
+                "--proposal-id",
+                "action-risk",
+                "--drift-type",
+                "mutation",
+                "--expected",
+                "read-only",
+                "--actual",
+                "patch",
+                "--status",
+                "open",
+            )
+            self.run_cli(
+                "runtime-record",
+                "--db",
+                db,
+                "--kind",
+                "intent",
+                "--project",
+                "agent-os",
+                "--goal-id",
+                "other-goal",
+                "--id",
+                "intent-other",
+                "--summary",
+                "Other read-only diagnosis",
+                "--intent-type",
+                "diagnosis",
+                "--mutation-authorization",
+                "read-only",
+            )
+            self.run_cli(
+                "runtime-record",
+                "--db",
+                db,
+                "--kind",
+                "drift",
+                "--project",
+                "agent-os",
+                "--intent-id",
+                "intent-other",
+                "--drift-type",
+                "mutation",
+                "--expected",
+                "other read-only",
+                "--actual",
+                "other patch",
+                "--status",
+                "open",
+            )
+            final_check = self.run_cli(
+                "runtime-final-check",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--goal-id",
+                "goal-intent-risk",
+            )
+            self.assertFalse(final_check["ok"], final_check)
+            self.assertIn("blocked action proposal", final_check["missing"])
+            self.assertIn("open drift events", final_check["missing"])
+            self.assertEqual(final_check["action_proposals"][0]["id"], "action-risk")
+            self.assertEqual(final_check["open_drifts"][0]["drift_type"], "mutation")
+            self.assertEqual(len(final_check["open_drifts"]), 1)
+
+    def test_runtime_record_supports_intent_loop_record_kinds(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = str(Path(tmp) / "runtime.db")
+            intent = self.run_cli(
+                "runtime-record",
+                "--db",
+                db,
+                "--kind",
+                "intent",
+                "--project",
+                "agent-os",
+                "--id",
+                "intent-record",
+                "--summary",
+                "Investigate without mutation.",
+                "--intent-type",
+                "diagnosis",
+                "--mutation-authorization",
+                "read-only",
+                "--current-phase",
+                "explaining",
+                "--confidence",
+                "0.8",
+                "--explanation-required",
+            )
+            self.assertTrue(intent["ok"], intent)
+
+            proposal = self.run_cli(
+                "runtime-record",
+                "--db",
+                db,
+                "--kind",
+                "action-proposal",
+                "--project",
+                "agent-os",
+                "--id",
+                "proposal-record",
+                "--intent-id",
+                "intent-record",
+                "--action-type",
+                "patch",
+                "--tool",
+                "patch.apply",
+                "--target-paths",
+                "server/api.ts",
+                "--reason",
+                "Regression guard proposal",
+                "--status",
+                "blocked",
+                "--gate-decision",
+                "blocked",
+                "--gate-reason",
+                "read-only",
+                "--requires-approval",
+            )
+            self.assertTrue(proposal["ok"], proposal)
+
+            approval = self.run_cli(
+                "runtime-record",
+                "--db",
+                db,
+                "--kind",
+                "approval",
+                "--project",
+                "agent-os",
+                "--intent-id",
+                "intent-record",
+                "--proposal-id",
+                "proposal-record",
+                "--approved-text",
+                "那你修一下",
+                "--approved-scope",
+                "server/api.ts",
+            )
+            self.assertTrue(approval["ok"], approval)
+
+            feedback = self.run_cli(
+                "runtime-record",
+                "--db",
+                db,
+                "--kind",
+                "feedback",
+                "--project",
+                "agent-os",
+                "--intent-id",
+                "intent-record",
+                "--proposal-id",
+                "proposal-record",
+                "--confidence-delta",
+                "-0.2",
+                "--evidence-delta",
+                "contradicts",
+                "--summary",
+                "User intent and proposed mutation conflict.",
+            )
+            self.assertTrue(feedback["ok"], feedback)
+
+            drift = self.run_cli(
+                "runtime-record",
+                "--db",
+                db,
+                "--kind",
+                "drift",
+                "--project",
+                "agent-os",
+                "--intent-id",
+                "intent-record",
+                "--proposal-id",
+                "proposal-record",
+                "--feedback-id",
+                str(feedback["id"]),
+                "--drift-type",
+                "mutation",
+                "--expected",
+                "read-only diagnosis",
+                "--actual",
+                "patch proposal",
+                "--status",
+                "open",
+            )
+            self.assertTrue(drift["ok"], drift)
+
+            plan = self.run_cli(
+                "runtime-record",
+                "--db",
+                db,
+                "--kind",
+                "plan-version",
+                "--project",
+                "agent-os",
+                "--intent-id",
+                "intent-record",
+                "--steps",
+                "1. Re-anchor. 2. Wait for confirmation. 3. Execute only after approval.",
+                "--validation",
+                "Execution gate must pass.",
+                "--status",
+                "active",
+            )
+            self.assertTrue(plan["ok"], plan)
+            self.assertEqual(plan["version"], 1)
+
+            listed_intents = self.run_cli(
+                "runtime-list",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--kind",
+                "intent",
+                "--status",
+                "explaining",
+            )
+            self.assertEqual(listed_intents["results"][0]["id"], "intent-record")
+            self.assertEqual(listed_intents["results"][0]["mutation_authorization"], "read-only")
+
+            listed_proposals = self.run_cli(
+                "runtime-list",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--kind",
+                "action-proposal",
+                "--status",
+                "blocked",
+            )
+            self.assertEqual(listed_proposals["results"][0]["id"], "proposal-record")
+
+            listed_approvals = self.run_cli(
+                "runtime-list",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--kind",
+                "approval",
+            )
+            self.assertEqual(listed_approvals["results"][0]["proposal_id"], "proposal-record")
+
+            listed_feedback = self.run_cli(
+                "runtime-list",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--kind",
+                "feedback",
+            )
+            self.assertEqual(listed_feedback["results"][0]["summary"], "User intent and proposed mutation conflict.")
+
+            listed_drift = self.run_cli(
+                "runtime-list",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--kind",
+                "drift",
+                "--status",
+                "open",
+            )
+            self.assertEqual(listed_drift["results"][0]["drift_type"], "mutation")
+
+            listed_plans = self.run_cli(
+                "runtime-list",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--kind",
+                "plan-version",
+                "--status",
+                "active",
+            )
+            self.assertEqual(listed_plans["results"][0]["version"], 1)
 
     def test_runtime_record_event_and_summary_expose_event_bus(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -432,6 +1284,214 @@ class AgentRuntimeCliTests(unittest.TestCase):
                 "agent-os",
             )
             self.assertEqual(summary["recent_events"][0]["event_type"], "UserRequest")
+
+    def test_event_bus_scheduler_and_resource_manager_form_closed_loop(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = str(Path(tmp) / "runtime.db")
+            self.run_cli(
+                "runtime-record",
+                "--db",
+                db,
+                "--kind",
+                "goal",
+                "--project",
+                "agent-os",
+                "--id",
+                "goal-os-loop",
+                "--objective",
+                "Exercise OS loop services",
+            )
+            published = self.run_cli(
+                "runtime-publish-event",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--goal-id",
+                "goal-os-loop",
+                "--id",
+                "event-msg-loop",
+                "--topic",
+                "scheduler.tick",
+                "--subscriber",
+                "scheduler",
+                "--event-type",
+                "KernelStep",
+                "--summary",
+                "Scheduler should inspect queue.",
+                "--payload-json",
+                '{"tick":1}',
+                "--priority",
+                "5",
+            )
+            self.assertTrue(published["ok"], published)
+
+            polled = self.run_cli(
+                "runtime-poll-events",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--subscriber",
+                "scheduler",
+                "--deliver",
+            )
+            self.assertEqual(polled["messages"][0]["id"], "event-msg-loop")
+            self.assertEqual(polled["messages"][0]["status"], "delivered")
+
+            final_with_message = self.run_cli(
+                "runtime-final-check",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--goal-id",
+                "goal-os-loop",
+            )
+            self.assertIn("unacknowledged event messages", final_with_message["missing"])
+
+            acked = self.run_cli(
+                "runtime-ack-event",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--id",
+                "event-msg-loop",
+                "--ok",
+            )
+            self.assertTrue(acked["ok"], acked)
+
+            lease = self.run_cli(
+                "runtime-request-resource",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--goal-id",
+                "goal-os-loop",
+                "--id",
+                "lease-workspace",
+                "--resource-type",
+                "workspace",
+                "--resource-key",
+                "repo",
+                "--reason",
+                "Protect workspace mutation window.",
+            )
+            self.assertTrue(lease["ok"], lease)
+
+            scheduled = self.run_cli(
+                "runtime-schedule",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--goal-id",
+                "goal-os-loop",
+                "--id",
+                "schedule-review",
+                "--action-type",
+                "verify",
+                "--assigned-role",
+                "verifier",
+                "--required-resources",
+                "workspace:repo",
+                "--priority",
+                "10",
+                "--reason",
+                "Verify after workspace lease is free.",
+            )
+            self.assertTrue(scheduled["ok"], scheduled)
+
+            blocked_next = self.run_cli(
+                "runtime-scheduler-next",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--goal-id",
+                "goal-os-loop",
+            )
+            self.assertFalse(blocked_next["ok"], blocked_next)
+            self.assertEqual(blocked_next["blockers"][0]["reason"], "resources-busy")
+
+            final_with_work = self.run_cli(
+                "runtime-final-check",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--goal-id",
+                "goal-os-loop",
+            )
+            self.assertIn("open schedule items", final_with_work["missing"])
+            self.assertIn("resource lease not released", final_with_work["missing"])
+
+            released = self.run_cli(
+                "runtime-release-resource",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--id",
+                "lease-workspace",
+                "--reason",
+                "Verification can proceed.",
+            )
+            self.assertTrue(released["ok"], released)
+
+            runnable = self.run_cli(
+                "runtime-scheduler-next",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--goal-id",
+                "goal-os-loop",
+                "--advance",
+            )
+            self.assertTrue(runnable["ok"], runnable)
+            self.assertEqual(runnable["selected"]["id"], "schedule-review")
+            self.assertEqual(runnable["selected"]["status"], "running")
+
+            completed = self.run_cli(
+                "runtime-schedule-complete",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--id",
+                "schedule-review",
+                "--ok",
+                "--evidence",
+                "Scheduler queue item completed.",
+            )
+            self.assertTrue(completed["ok"], completed)
+
+            summary = self.run_cli(
+                "runtime-summary",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+            )
+            self.assertEqual(summary["recent_event_messages"][0]["status"], "acknowledged")
+            self.assertEqual(summary["recent_schedule_items"][0]["status"], "completed")
+            self.assertEqual(summary["recent_resource_leases"][0]["status"], "released")
+
+            listed = self.run_cli(
+                "runtime-list",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--kind",
+                "schedule-item",
+                "--status",
+                "completed",
+            )
+            self.assertEqual(listed["results"][0]["id"], "schedule-review")
 
     def test_kernel_step_records_goal_run_tasks_events(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1526,6 +2586,91 @@ class AgentRuntimeCliTests(unittest.TestCase):
             self.assertEqual(unsupported["adapter_name"], "vscode-panel")
             self.assertEqual(unsupported["missing_capabilities"], ["doctor", "status-panel"])
 
+    def test_compatibility_matrix_reports_models_hosts_and_entrypoints(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = str(Path(tmp) / "runtime.db")
+            self.run_cli(
+                "runtime-register-adapter",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--host-type",
+                "claude",
+                "--adapter-name",
+                "claude-cli",
+                "--capability",
+                "shell",
+                "git",
+                "runtime-cli",
+                "skills",
+                "memory",
+                "tool-runtime",
+                "subagent-runtime",
+            )
+            matrix = self.run_cli(
+                "runtime-compatibility-matrix",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--provider",
+                "mock",
+                "qwen",
+                "--host-type",
+                "claude",
+                "qwen",
+            )
+            providers = {item["provider"]: item for item in matrix["providers"]}
+            self.assertEqual(providers["mock"]["status"], "ready")
+            self.assertEqual(providers["qwen"]["adapter"], "qwen-model-adapter")
+            hosts = {item["host_type"]: item for item in matrix["hosts"]}
+            self.assertEqual(hosts["claude"]["entrypoint"], "CLAUDE.md")
+            self.assertEqual(hosts["claude"]["status"], "compatible")
+            self.assertEqual(hosts["qwen"]["entrypoint"], "QWEN.md")
+
+    def test_governance_proposal_records_human_review_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = str(Path(tmp) / "runtime.db")
+            proposal = self.run_cli(
+                "runtime-governance-proposal",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--name",
+                "intent-drift-policy",
+                "--source-type",
+                "rule",
+                "--trigger",
+                "Repeated diagnosis-to-mutation drift",
+                "--evidence",
+                "Two blocked action proposals and an open drift",
+                "--validation",
+                "runtime-final-check blocks open drift",
+                "--scope",
+                "Mutation Authorization Gate",
+                "--boundary",
+                "Do not auto-promote without human review",
+                "--ready-for-review",
+            )
+            self.assertTrue(proposal["ok"], proposal)
+            self.assertFalse(proposal["auto_promote"])
+            self.assertEqual(proposal["review_result"], "requires-human-review")
+
+            reviews = self.run_cli(
+                "runtime-list",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--kind",
+                "improvement",
+                "--status",
+                "reviewing",
+            )
+            self.assertEqual(reviews["results"][0]["candidate_name"], "intent-drift-policy")
+
     def test_observability_metrics_calculates_quality_signals(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             db = str(Path(tmp) / "runtime.db")
@@ -1738,6 +2883,230 @@ class AgentRuntimeCliTests(unittest.TestCase):
             self.assertTrue(trends["trends"]["failure_rate_series"])
             self.assertTrue(trends["trends"]["verification_pass_rate_series"])
             self.assertTrue(any(cluster["type"] == "documentation-drift" for cluster in trends["trends"]["failure_clusters"]))
+
+    def test_quality_score_and_self_audit_record_governance_risks(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = str(Path(tmp) / "runtime.db")
+            self.run_cli(
+                "runtime-record",
+                "--db",
+                db,
+                "--kind",
+                "goal",
+                "--project",
+                "agent-os",
+                "--id",
+                "goal-quality",
+                "--objective",
+                "Score runtime quality",
+            )
+            self.run_cli(
+                "runtime-record",
+                "--db",
+                db,
+                "--kind",
+                "verification",
+                "--project",
+                "agent-os",
+                "--goal-id",
+                "goal-quality",
+                "--scope",
+                "unit",
+                "--command",
+                "python -m unittest",
+                "--result",
+                "failed",
+                "--evidence",
+                "failed before fix",
+            )
+            self.run_cli(
+                "runtime-record",
+                "--db",
+                db,
+                "--kind",
+                "action-proposal",
+                "--project",
+                "agent-os",
+                "--goal-id",
+                "goal-quality",
+                "--id",
+                "action-quality",
+                "--action-type",
+                "patch",
+                "--tool",
+                "patch.apply",
+                "--reason",
+                "blocked action",
+                "--status",
+                "blocked",
+            )
+            self.run_cli(
+                "runtime-record",
+                "--db",
+                db,
+                "--kind",
+                "schedule-item",
+                "--project",
+                "agent-os",
+                "--goal-id",
+                "goal-quality",
+                "--id",
+                "schedule-quality",
+                "--action-type",
+                "verify",
+                "--status",
+                "queued",
+            )
+
+            score = self.run_cli(
+                "runtime-quality-score",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--goal-id",
+                "goal-quality",
+                "--record",
+                "--min-score",
+                "90",
+            )
+            self.assertFalse(score["ok"], score)
+            self.assertIn(score["grade"], {"D", "F"})
+            self.assertLess(score["score"], 70)
+            self.assertGreater(score["metrics"]["blocked_actions"], 0)
+
+            audit = self.run_cli(
+                "runtime-self-audit",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--goal-id",
+                "goal-quality",
+                "--record",
+            )
+            self.assertFalse(audit["ok"], audit)
+            finding_types = {finding["finding_type"] for finding in audit["findings"]}
+            self.assertIn("blocked-action", finding_types)
+            self.assertIn("open-scheduler-work", finding_types)
+
+            final_check = self.run_cli(
+                "runtime-final-check",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--goal-id",
+                "goal-quality",
+            )
+            self.assertIn("open self-audit findings", final_check["missing"])
+            self.assertIn("quality score below threshold", final_check["missing"])
+
+            summary = self.run_cli(
+                "runtime-summary",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+            )
+            self.assertIn(summary["recent_quality_scores"][0]["grade"], {"D", "F"})
+            self.assertEqual(summary["recent_self_audit_findings"][0]["status"], "open")
+
+            listed = self.run_cli(
+                "runtime-list",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--kind",
+                "quality-score",
+            )
+            self.assertIn(listed["results"][0]["grade"], {"D", "F"})
+
+    def test_benchmark_records_thresholds_and_blocks_final_check_regressions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = str(Path(tmp) / "runtime.db")
+            self.run_cli(
+                "runtime-record",
+                "--db",
+                db,
+                "--kind",
+                "goal",
+                "--project",
+                "agent-os",
+                "--id",
+                "goal-benchmark",
+                "--objective",
+                "Benchmark runtime",
+            )
+            failed = self.run_cli(
+                "runtime-benchmark",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--goal-id",
+                "goal-benchmark",
+                "--name",
+                "dashboard-render",
+                "--metric",
+                "duration-ms",
+                "--baseline-value",
+                "100",
+                "--current-value",
+                "140",
+                "--direction",
+                "lower-is-better",
+                "--unit",
+                "ms",
+                "--record",
+            )
+            self.assertFalse(failed["ok"], failed)
+            self.assertEqual(failed["status"], "failed")
+
+            quality = self.run_cli(
+                "runtime-quality-score",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--goal-id",
+                "goal-benchmark",
+                "--record",
+            )
+            self.assertGreater(quality["metrics"]["failed_benchmarks"], 0)
+
+            audit = self.run_cli(
+                "runtime-self-audit",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--goal-id",
+                "goal-benchmark",
+                "--record",
+            )
+            self.assertIn("benchmark-regression", {item["finding_type"] for item in audit["findings"]})
+
+            final_check = self.run_cli(
+                "runtime-final-check",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--goal-id",
+                "goal-benchmark",
+            )
+            self.assertIn("benchmark regression", final_check["missing"])
+
+            summary = self.run_cli(
+                "runtime-summary",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+            )
+            self.assertEqual(summary["recent_benchmarks"][0]["status"], "failed")
 
     def test_policy_packs_validate_team_governance_pack(self) -> None:
         result = self.run_cli(
@@ -2028,6 +3397,79 @@ class AgentRuntimeCliTests(unittest.TestCase):
                 "run-trace",
                 "--record",
             )
+            self.run_cli(
+                "runtime-detect-intent",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--goal-id",
+                "goal-trace",
+                "--run-id",
+                "run-trace",
+                "--intent-id",
+                "intent-trace",
+                "--request",
+                "Investigate trace report",
+                "--record",
+            )
+            self.run_cli(
+                "runtime-propose-action",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--goal-id",
+                "goal-trace",
+                "--run-id",
+                "run-trace",
+                "--id",
+                "action-trace",
+                "--intent-id",
+                "intent-trace",
+                "--action-type",
+                "read",
+                "--tool",
+                "file.read",
+                "--reason",
+                "Trace read action",
+                "--validation-plan",
+                "trace has intent chain",
+            )
+            self.run_cli(
+                "runtime-record-feedback",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--goal-id",
+                "goal-trace",
+                "--run-id",
+                "run-trace",
+                "--intent-id",
+                "intent-trace",
+                "--proposal-id",
+                "action-trace",
+                "--summary",
+                "Trace feedback recorded.",
+            )
+            self.run_cli(
+                "runtime-revise-plan",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--goal-id",
+                "goal-trace",
+                "--run-id",
+                "run-trace",
+                "--intent-id",
+                "intent-trace",
+                "--steps",
+                "1. Include intent loop in trace.",
+                "--status",
+                "active",
+            )
 
             trace = self.run_cli(
                 "runtime-trace",
@@ -2049,6 +3491,10 @@ class AgentRuntimeCliTests(unittest.TestCase):
             self.assertRegex(runtime_trace["output_hash"], r"^[a-f0-9]{64}$")
             self.assertGreater(runtime_trace["event_count"], 0)
             self.assertTrue(runtime_trace["tasks"])
+            self.assertTrue(runtime_trace["intents"])
+            self.assertTrue(runtime_trace["action_proposals"])
+            self.assertTrue(runtime_trace["feedback"])
+            self.assertTrue(runtime_trace["plan_versions"])
             self.assertTrue(runtime_trace["policies"])
             self.assertTrue(runtime_trace["skill_recommendations"])
             self.assertTrue(runtime_trace["tool_runs"])
@@ -2058,6 +3504,8 @@ class AgentRuntimeCliTests(unittest.TestCase):
             self.assertIn("metrics", runtime_trace)
             event_types = {item["event_type"] for item in runtime_trace["events"]}
             self.assertIn("TraceExported", event_types)
+            timeline_sources = {item["source"] for item in runtime_trace["timeline"]}
+            self.assertTrue({"intent", "action", "feedback", "plan"}.issubset(timeline_sources))
 
             listed = self.run_cli(
                 "runtime-list",
@@ -2178,6 +3626,71 @@ class AgentRuntimeCliTests(unittest.TestCase):
                 "scripts/agent-runtime.py",
             )
             self.assertTrue(any(check["scope"] == "python tests" for check in profile["checks"]))
+            self.run_cli(
+                "runtime-detect-intent",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--goal-id",
+                "goal-report",
+                "--run-id",
+                "run-report",
+                "--intent-id",
+                "intent-report",
+                "--request",
+                "Analyze runtime report",
+                "--record",
+            )
+            self.run_cli(
+                "runtime-propose-action",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--goal-id",
+                "goal-report",
+                "--run-id",
+                "run-report",
+                "--id",
+                "action-report",
+                "--intent-id",
+                "intent-report",
+                "--action-type",
+                "read",
+                "--tool",
+                "file.read",
+                "--reason",
+                "Report read action",
+                "--validation-plan",
+                "report contains intent loop",
+            )
+            self.run_cli(
+                "runtime-record-feedback",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--intent-id",
+                "intent-report",
+                "--proposal-id",
+                "action-report",
+                "--summary",
+                "Report feedback recorded.",
+            )
+            self.run_cli(
+                "runtime-revise-plan",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--intent-id",
+                "intent-report",
+                "--steps",
+                "1. Include intent loop in report.",
+                "--status",
+                "active",
+            )
 
             report = self.run_cli(
                 "runtime-report",
@@ -2191,6 +3704,10 @@ class AgentRuntimeCliTests(unittest.TestCase):
             self.assertTrue(report["ok"])
             self.assertEqual(report["run"]["id"], "run-report")
             self.assertTrue(report["tasks"])
+            self.assertEqual(report["intents"][0]["id"], "intent-report")
+            self.assertEqual(report["action_proposals"][0]["id"], "action-report")
+            self.assertEqual(report["feedback"][0]["summary"], "Report feedback recorded.")
+            self.assertEqual(report["plan_versions"][0]["version"], 1)
 
     def test_runtime_check_docs_reports_freshness(self) -> None:
         result = self.run_cli(

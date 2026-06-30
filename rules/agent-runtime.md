@@ -22,11 +22,22 @@ Runtime records also do not replace Documentation Gate. If runtime activity chan
 
 ## Runtime Capabilities
 
-Agent OS tracks ten agent capabilities through runtime records and controller commands:
+Agent OS tracks intent, execution, verification, and learning capabilities through runtime records and controller commands:
 
 | Capability | Runtime Record | Purpose |
 | --- | --- | --- |
 | Goal Runtime | `agent_goals` | Preserve objective, phase, success criteria, status, and completion evidence. |
+| Intent Runtime | `intent_states`, `runtime-detect-intent` | Preserve parsed intent, mutation authorization, phase, confidence, risk, allowed actions, and blocked actions. |
+| Execution Gate | `action_proposals`, `approval_records`, `runtime-validate-action`, `runtime-execution-gate` | Validate actions before execution, block unauthorized mutation, and record explicit user approval. |
+| Feedback Loop | `feedback_events`, `drift_events`, `plan_versions`, `runtime-record-feedback`, `runtime-detect-drift`, `runtime-reanchor`, `runtime-revise-plan` | Feed results back into intent/planning, detect drift, request re-anchor, and version revised plans. |
+| Event Bus | `event_bus_messages`, `runtime-publish-event`, `runtime-poll-events`, `runtime-ack-event` | Publish, deliver, and acknowledge runtime messages between kernel, scheduler, tools, and observers. |
+| Scheduler | `runtime_schedule_items`, `runtime-schedule`, `runtime-scheduler-next`, `runtime-schedule-complete` | Queue actions, respect dependencies and resource conflicts, and advance executable work explicitly. |
+| Resource Manager | `resource_leases`, `runtime-request-resource`, `runtime-release-resource` | Grant, deny, and release leases for workspace, shell, git, model, browser, memory, and custom resources. |
+| Quality Score | `quality_scores`, `runtime-quality-score` | Score scoped runtime quality from verification, intent drift, scheduling, docs, recovery, memory, and risk evidence. |
+| Benchmark | `benchmark_runs`, `runtime-benchmark` | Record baseline/current/threshold benchmark evidence and block regressions during final checks. |
+| Runtime Self-Audit | `self_audit_findings`, `runtime-self-audit` | Detect unresolved governance and completion risks before final handoff. |
+| Compatibility Matrix | `host_adapters`, `model_runs`, `runtime-compatibility-matrix` | Report provider configuration, host adapter capabilities, and model/IDE entrypoint expectations. |
+| Governance Proposal | `improvement_reviews`, `runtime-governance-proposal` | Record rule or skill evolution proposals without auto-promoting them. |
 | Autonomous Observe Loop | `agent_observations`, `runtime-scan-capability` | Record observed file/test/build/user/project signals with evidence. |
 | Planner / Executor Separation | `agent_tasks.assigned_role`, `runtime-next` | Split planning, execution, review, verification, and memory recording responsibilities. |
 | Capability Graph | `capability_nodes`, `capability_links`, `runtime-scan-capability` | Track whether a product capability is complete, partial, broken-chain, absent, or unconfirmed. |
@@ -57,7 +68,30 @@ Runtime records should summarize state. Do not store raw transcripts, secrets, c
 
 Runtime controllers convert gate decisions into explicit command outputs:
 
-- `runtime-detect-context`: detects project, stack, task layers, task scale, intent, confidence, and evidence.
+- `runtime-detect-context`: detects project, stack, task layers, task scale, intent, mutation authorization, confidence, and evidence.
+- `runtime-detect-intent`: detects and optionally records structured intent state, including mutation authorization and blocked actions.
+- `runtime-tool-registry`: lists tool action classifications so read-only and mutating tools are explicit.
+- `runtime-validate-action`: evaluates an action against intent, mutation authorization, scope, confidence, risk, and validation requirements.
+- `runtime-propose-action`: records an action proposal and the gate result before execution.
+- `runtime-execution-gate`: re-evaluates a proposal or direct action immediately before execution.
+- `runtime-approve-action`: records explicit user approval and upgrades an intent/proposal when appropriate.
+- `runtime-record-feedback`: records validation, user, or execution feedback into the intent loop.
+- `runtime-detect-drift`: detects mutation, scope, tool, risk, evidence, plan, confidence, or role drift.
+- `runtime-reanchor`: moves an intent back to user confirmation when drift or uncertainty appears.
+- `runtime-revise-plan`: records a versioned plan after feedback or drift changes the next action.
+- `runtime-publish-event`: publishes an event bus message and optionally mirrors it to `agent_events`.
+- `runtime-poll-events`: delivers pending messages for a subscriber.
+- `runtime-ack-event`: acknowledges or fails a delivered event bus message.
+- `runtime-schedule`: adds or updates a scheduler queue item.
+- `runtime-scheduler-next`: selects the highest-priority runnable item after dependency and resource checks.
+- `runtime-schedule-complete`: marks scheduler work completed or blocked.
+- `runtime-request-resource`: requests a resource lease and denies conflicting active leases unless forced.
+- `runtime-release-resource`: releases a granted resource lease.
+- `runtime-quality-score`: calculates and optionally records a scoped quality score and grade.
+- `runtime-benchmark`: records a benchmark or substitute non-regression metric with baseline, threshold, direction, and status.
+- `runtime-self-audit`: records open runtime risks such as blocked actions, drift, unacked messages, open scheduler work, resource leaks, and verification gaps.
+- `runtime-compatibility-matrix`: reports provider and host compatibility, expected entrypoint files, and missing host capabilities.
+- `runtime-governance-proposal`: records a governed rule or skill evolution proposal and keeps promotion under human review.
 - `runtime-run`: runs the full planning loop: context, capability, policy, tasks, skill recommendations, verification plan, and recovery plan.
 - `runtime-scan-capability`: scans memory-adjacent project files and classifies capability state as `complete`, `partial`, `broken-chain`, `absent`, or `unconfirmed`.
 - `runtime-evaluate-policy`: evaluates task scale, capability state, task layers, and risk signals into plan/TDD/review/rollback/worktree/performance decisions.
@@ -78,6 +112,10 @@ Runtime controllers convert gate decisions into explicit command outputs:
 Controllers may run in dry output mode or with `--record` to write runtime records. Recorded controller output is evidence, not a substitute for code inspection, real validation, or user-visible workflow output.
 
 `runtime-run`, `runtime-plan-tasks`, and policy records can prepare the operating loop, but the agent still must summarize the applicable workflow intent or plan in the conversation before editing files.
+
+For diagnosis-like requests, Runtime must preserve the Mutation Authorization Gate decision. A `mutation_authorization=read-only` context means the runtime may guide investigation, evidence collection, and recommended fixes, but must not be used as permission to edit source, tests, docs, config, or project memory.
+
+When a tool call supplies intent/action context, `runtime-run-tool` must pass the same Execution Gate before running. If the gate returns `blocked` or `requires-approval`, the tool call is recorded as blocked and must not execute.
 
 ---
 
@@ -163,9 +201,24 @@ python scripts/agent-runtime.py runtime-record --kind policy ...
 python scripts/agent-runtime.py runtime-record --kind verification ...
 python scripts/agent-runtime.py runtime-record --kind recovery ...
 python scripts/agent-runtime.py runtime-record --kind improvement ...
+python scripts/agent-runtime.py runtime-record --kind intent ...
+python scripts/agent-runtime.py runtime-record --kind action-proposal ...
+python scripts/agent-runtime.py runtime-record --kind feedback ...
+python scripts/agent-runtime.py runtime-record --kind drift ...
+python scripts/agent-runtime.py runtime-record --kind approval ...
+python scripts/agent-runtime.py runtime-record --kind plan-version ...
 python scripts/agent-runtime.py runtime-list --kind task --project my-project
 python scripts/agent-runtime.py runtime-summary --project my-project
 python scripts/agent-runtime.py runtime-detect-context --request "Implement phone login" --files src/Login.tsx server/auth.ts --record
+python scripts/agent-runtime.py runtime-detect-intent --project my-project --request "Investigate why original check is 0" --record
+python scripts/agent-runtime.py runtime-validate-action --project my-project --intent-id intent-1 --action-type patch --target-paths server/api.ts
+python scripts/agent-runtime.py runtime-propose-action --project my-project --intent-id intent-1 --action-type patch --tool patch.apply --reason "candidate fix"
+python scripts/agent-runtime.py runtime-execution-gate --project my-project --proposal-id action-1
+python scripts/agent-runtime.py runtime-approve-action --project my-project --intent-id intent-1 --proposal-id action-1 --approved-text "fix it"
+python scripts/agent-runtime.py runtime-record-feedback --project my-project --intent-id intent-1 --summary "new evidence changed confidence"
+python scripts/agent-runtime.py runtime-detect-drift --project my-project --intent-id intent-1 --proposal-id action-1 --record
+python scripts/agent-runtime.py runtime-reanchor --project my-project --intent-id intent-1
+python scripts/agent-runtime.py runtime-revise-plan --project my-project --intent-id intent-1 --steps "1. Re-anchor. 2. Validate. 3. Execute after approval."
 python scripts/agent-runtime.py runtime-run --project my-project --request "Implement phone login" --capability phone-login --term phone login auth --record
 python scripts/agent-runtime.py runtime-scan-capability --project my-project --name phone-login --term phone login --record
 python scripts/agent-runtime.py runtime-evaluate-policy --project my-project --scale L3 --capability-status broken-chain --task-layer Integration API --signal auth --record

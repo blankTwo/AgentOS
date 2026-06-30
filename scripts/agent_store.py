@@ -62,6 +62,14 @@ def ensure_agent_events_event_types(conn: sqlite3.Connection) -> None:
         "AdapterRegistered",
         "MetricsRecorded",
         "TraceExported",
+        "IntentDetected",
+        "ActionProposed",
+        "ActionBlocked",
+        "ActionApproved",
+        "FeedbackRecorded",
+        "DriftDetected",
+        "ReanchorRequested",
+        "PlanRevised",
     }
     current_sql = table_sql(conn, "agent_events")
     if not current_sql or required_types.issubset(set(re.findall(r"'([^']+)'", current_sql))):
@@ -103,7 +111,15 @@ def ensure_agent_events_event_types(conn: sqlite3.Connection) -> None:
                 'SubAgentRunRecorded',
                 'AdapterRegistered',
                 'MetricsRecorded',
-                'TraceExported'
+                'TraceExported',
+                'IntentDetected',
+                'ActionProposed',
+                'ActionBlocked',
+                'ActionApproved',
+                'FeedbackRecorded',
+                'DriftDetected',
+                'ReanchorRequested',
+                'PlanRevised'
             )),
             source TEXT NOT NULL DEFAULT 'runtime',
             summary TEXT NOT NULL,
@@ -205,6 +221,59 @@ def ensure_model_runs_provider_types(conn: sqlite3.Connection) -> None:
     conn.execute("DROP TABLE model_runs_old")
 
 
+def ensure_host_adapter_host_types(conn: sqlite3.Connection) -> None:
+    current_sql = table_sql(conn, "host_adapters")
+    if not current_sql or "'qwen'" in current_sql:
+        return
+
+    conn.execute("ALTER TABLE host_adapters RENAME TO host_adapters_old")
+    conn.execute(
+        """
+        CREATE TABLE host_adapters (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project TEXT NOT NULL,
+            host_type TEXT NOT NULL CHECK (host_type IN (
+                'codex',
+                'claude',
+                'qwen',
+                'cursor',
+                'vscode',
+                'cli',
+                'mcp',
+                'custom'
+            )),
+            adapter_name TEXT NOT NULL,
+            entrypoint TEXT,
+            capabilities_json TEXT NOT NULL,
+            config_path TEXT,
+            status TEXT NOT NULL DEFAULT 'available' CHECK (status IN (
+                'available',
+                'missing',
+                'invalid',
+                'disabled'
+            )),
+            issues_json TEXT,
+            evidence TEXT,
+            registered_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(project, host_type, adapter_name)
+        )
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO host_adapters(
+            id, project, host_type, adapter_name, entrypoint, capabilities_json,
+            config_path, status, issues_json, evidence, registered_at, updated_at
+        )
+        SELECT id, project, host_type, adapter_name, entrypoint, capabilities_json,
+               config_path, status, issues_json, evidence, registered_at, updated_at
+        FROM host_adapters_old
+        """
+    )
+    conn.execute("DROP TABLE host_adapters_old")
+
+
 def migrate_schema(conn: sqlite3.Connection) -> None:
     if not column_exists(conn, "memory_items", "import_key"):
         conn.execute("ALTER TABLE memory_items ADD COLUMN import_key TEXT")
@@ -235,6 +304,9 @@ def migrate_schema(conn: sqlite3.Connection) -> None:
     add_column_if_missing(conn, "skill_candidates", "run_id", "TEXT")
     add_column_if_missing(conn, "improvement_reviews", "goal_id", "TEXT")
     add_column_if_missing(conn, "improvement_reviews", "run_id", "TEXT")
+    add_column_if_missing(conn, "runtime_contexts", "mutation_authorization", "TEXT")
+    add_column_if_missing(conn, "intent_states", "mission_ir_json", "TEXT")
+    add_column_if_missing(conn, "intent_states", "compiler_metadata_json", "TEXT")
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS tool_runs (
@@ -407,6 +479,7 @@ def migrate_schema(conn: sqlite3.Connection) -> None:
             host_type TEXT NOT NULL CHECK (host_type IN (
                 'codex',
                 'claude',
+                'qwen',
                 'cursor',
                 'vscode',
                 'cli',
@@ -526,7 +599,15 @@ def migrate_schema(conn: sqlite3.Connection) -> None:
                 'SubAgentRunRecorded',
                 'AdapterRegistered',
                 'MetricsRecorded',
-                'TraceExported'
+                'TraceExported',
+                'IntentDetected',
+                'ActionProposed',
+                'ActionBlocked',
+                'ActionApproved',
+                'FeedbackRecorded',
+                'DriftDetected',
+                'ReanchorRequested',
+                'PlanRevised'
             )),
             source TEXT NOT NULL DEFAULT 'runtime',
             summary TEXT NOT NULL,
@@ -541,8 +622,403 @@ def migrate_schema(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS intent_states (
+            id TEXT PRIMARY KEY,
+            project TEXT NOT NULL,
+            goal_id TEXT,
+            run_id TEXT,
+            original_request TEXT NOT NULL,
+            intent_type TEXT NOT NULL CHECK (intent_type IN (
+                'query',
+                'diagnosis',
+                'review',
+                'bugfix',
+                'fix',
+                'feature',
+                'refactor',
+                'test',
+                'commit',
+                'task'
+            )),
+            mutation_authorization TEXT NOT NULL CHECK (mutation_authorization IN (
+                'read-only',
+                'fix-authorized',
+                'ambiguous'
+            )),
+            approved_scope TEXT,
+            current_phase TEXT NOT NULL DEFAULT 'parsed' CHECK (current_phase IN (
+                'parsed',
+                'explaining',
+                'planning',
+                'awaiting-approval',
+                'approved',
+                'executing',
+                'verifying',
+                'completed',
+                'blocked'
+            )),
+            confidence REAL NOT NULL DEFAULT 0.5 CHECK (confidence >= 0 AND confidence <= 1),
+            risk_level TEXT NOT NULL DEFAULT 'normal' CHECK (risk_level IN (
+                'low',
+                'normal',
+                'high',
+                'critical'
+            )),
+            allowed_actions TEXT,
+            blocked_actions TEXT,
+            explanation_required INTEGER NOT NULL DEFAULT 0 CHECK (explanation_required IN (0, 1)),
+            evidence TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS action_proposals (
+            id TEXT PRIMARY KEY,
+            project TEXT NOT NULL,
+            intent_id TEXT,
+            goal_id TEXT,
+            run_id TEXT,
+            action_type TEXT NOT NULL CHECK (action_type IN (
+                'read',
+                'write',
+                'patch',
+                'delete',
+                'commit',
+                'deploy',
+                'memory',
+                'docs',
+                'verify',
+                'shell',
+                'git',
+                'api',
+                'browser'
+            )),
+            tool TEXT NOT NULL,
+            target_paths TEXT,
+            reason TEXT NOT NULL,
+            risk_level TEXT NOT NULL DEFAULT 'normal' CHECK (risk_level IN (
+                'low',
+                'normal',
+                'high',
+                'critical'
+            )),
+            status TEXT NOT NULL DEFAULT 'proposed' CHECK (status IN (
+                'proposed',
+                'allowed',
+                'blocked',
+                'requires-approval',
+                'approved',
+                'rejected',
+                'executed'
+            )),
+            gate_decision TEXT,
+            gate_reason TEXT,
+            requires_approval INTEGER NOT NULL DEFAULT 0 CHECK (requires_approval IN (0, 1)),
+            validation_plan TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS approval_records (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project TEXT NOT NULL,
+            intent_id TEXT,
+            proposal_id TEXT,
+            approved_by_user_text TEXT NOT NULL,
+            approved_scope TEXT,
+            expires_when TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS feedback_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project TEXT NOT NULL,
+            intent_id TEXT,
+            proposal_id TEXT,
+            observation_id INTEGER,
+            confidence_delta REAL NOT NULL DEFAULT 0,
+            risk_delta TEXT NOT NULL DEFAULT 'none' CHECK (risk_delta IN (
+                'none',
+                'increased',
+                'decreased'
+            )),
+            scope_delta TEXT NOT NULL DEFAULT 'none' CHECK (scope_delta IN (
+                'none',
+                'expanded',
+                'narrowed',
+                'changed'
+            )),
+            evidence_delta TEXT NOT NULL DEFAULT 'none' CHECK (evidence_delta IN (
+                'none',
+                'supports',
+                'contradicts',
+                'new-evidence'
+            )),
+            summary TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS drift_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project TEXT NOT NULL,
+            intent_id TEXT,
+            proposal_id TEXT,
+            feedback_id INTEGER,
+            drift_type TEXT NOT NULL CHECK (drift_type IN (
+                'mutation',
+                'scope',
+                'tool',
+                'risk',
+                'evidence',
+                'plan',
+                'confidence',
+                'role'
+            )),
+            severity TEXT NOT NULL DEFAULT 'warning' CHECK (severity IN (
+                'info',
+                'warning',
+                'error',
+                'critical'
+            )),
+            expected TEXT NOT NULL,
+            actual TEXT NOT NULL,
+            resolution TEXT NOT NULL DEFAULT 're-anchor-required',
+            status TEXT NOT NULL DEFAULT 'open' CHECK (status IN (
+                'open',
+                'acknowledged',
+                'resolved',
+                'ignored'
+            )),
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS plan_versions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project TEXT NOT NULL,
+            intent_id TEXT,
+            version INTEGER NOT NULL,
+            assumptions TEXT,
+            steps TEXT NOT NULL,
+            validation TEXT,
+            rollback TEXT,
+            status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN (
+                'draft',
+                'active',
+                'superseded',
+                'completed'
+            )),
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(intent_id, version)
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS event_bus_messages (
+            id TEXT PRIMARY KEY,
+            project TEXT NOT NULL,
+            run_id TEXT,
+            goal_id TEXT,
+            task_id TEXT,
+            event_id INTEGER,
+            topic TEXT NOT NULL,
+            subscriber TEXT NOT NULL DEFAULT '*',
+            status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN (
+                'pending',
+                'delivered',
+                'acknowledged',
+                'failed',
+                'cancelled'
+            )),
+            priority INTEGER NOT NULL DEFAULT 0,
+            payload_json TEXT,
+            available_at TEXT NOT NULL DEFAULT (datetime('now')),
+            delivered_at TEXT,
+            acknowledged_at TEXT,
+            failure_detail TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS runtime_schedule_items (
+            id TEXT PRIMARY KEY,
+            project TEXT NOT NULL,
+            run_id TEXT,
+            goal_id TEXT,
+            task_id TEXT,
+            intent_id TEXT,
+            action_type TEXT NOT NULL,
+            assigned_role TEXT,
+            status TEXT NOT NULL DEFAULT 'queued' CHECK (status IN (
+                'queued',
+                'ready',
+                'running',
+                'completed',
+                'blocked',
+                'cancelled'
+            )),
+            priority INTEGER NOT NULL DEFAULT 0,
+            depends_on TEXT,
+            required_resources TEXT,
+            schedule_reason TEXT,
+            next_action TEXT,
+            available_at TEXT NOT NULL DEFAULT (datetime('now')),
+            started_at TEXT,
+            completed_at TEXT,
+            blocker TEXT,
+            evidence TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS resource_leases (
+            id TEXT PRIMARY KEY,
+            project TEXT NOT NULL,
+            run_id TEXT,
+            goal_id TEXT,
+            task_id TEXT,
+            schedule_id TEXT,
+            resource_type TEXT NOT NULL CHECK (resource_type IN (
+                'shell',
+                'git',
+                'api',
+                'browser',
+                'model',
+                'subagent',
+                'memory',
+                'workspace',
+                'custom'
+            )),
+            resource_key TEXT NOT NULL,
+            quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0),
+            status TEXT NOT NULL DEFAULT 'requested' CHECK (status IN (
+                'requested',
+                'granted',
+                'denied',
+                'released',
+                'expired'
+            )),
+            reason TEXT,
+            expires_at TEXT,
+            granted_at TEXT,
+            released_at TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS quality_scores (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project TEXT NOT NULL,
+            goal_id TEXT,
+            run_id TEXT,
+            score REAL NOT NULL CHECK (score >= 0 AND score <= 100),
+            grade TEXT NOT NULL CHECK (grade IN (
+                'A',
+                'B',
+                'C',
+                'D',
+                'F'
+            )),
+            verification_score REAL NOT NULL DEFAULT 0,
+            intent_score REAL NOT NULL DEFAULT 0,
+            schedule_score REAL NOT NULL DEFAULT 0,
+            docs_score REAL NOT NULL DEFAULT 0,
+            recovery_score REAL NOT NULL DEFAULT 0,
+            memory_score REAL NOT NULL DEFAULT 0,
+            risk_penalty REAL NOT NULL DEFAULT 0,
+            evidence TEXT,
+            metrics_json TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS self_audit_findings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project TEXT NOT NULL,
+            goal_id TEXT,
+            run_id TEXT,
+            finding_type TEXT NOT NULL,
+            severity TEXT NOT NULL DEFAULT 'warning' CHECK (severity IN (
+                'info',
+                'warning',
+                'error',
+                'critical'
+            )),
+            status TEXT NOT NULL DEFAULT 'open' CHECK (status IN (
+                'open',
+                'acknowledged',
+                'resolved',
+                'ignored'
+            )),
+            summary TEXT NOT NULL,
+            evidence TEXT,
+            recommendation TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS benchmark_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project TEXT NOT NULL,
+            goal_id TEXT,
+            run_id TEXT,
+            name TEXT NOT NULL,
+            metric TEXT NOT NULL,
+            baseline_value REAL,
+            current_value REAL NOT NULL,
+            threshold_value REAL,
+            direction TEXT NOT NULL DEFAULT 'lower-is-better' CHECK (direction IN (
+                'lower-is-better',
+                'higher-is-better',
+                'equal'
+            )),
+            unit TEXT,
+            status TEXT NOT NULL CHECK (status IN (
+                'passed',
+                'failed',
+                'blocked',
+                'not-run'
+            )),
+            command TEXT,
+            evidence TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+        """
+    )
     ensure_agent_events_event_types(conn)
     ensure_model_runs_provider_types(conn)
+    ensure_host_adapter_host_types(conn)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_skill_recommendations_goal ON skill_recommendations(goal_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_skill_recommendations_run ON skill_recommendations(run_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_skill_candidates_goal ON skill_candidates(goal_id)")
@@ -589,6 +1065,55 @@ def migrate_schema(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_agent_events_run ON agent_events(run_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_agent_events_type ON agent_events(event_type)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_agent_events_created_at ON agent_events(created_at)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_intent_states_project ON intent_states(project)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_intent_states_goal ON intent_states(goal_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_intent_states_run ON intent_states(run_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_intent_states_phase ON intent_states(current_phase)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_action_proposals_project ON action_proposals(project)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_action_proposals_intent ON action_proposals(intent_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_action_proposals_status ON action_proposals(status)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_approval_records_project ON approval_records(project)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_approval_records_intent ON approval_records(intent_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_approval_records_proposal ON approval_records(proposal_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_feedback_events_project ON feedback_events(project)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_feedback_events_intent ON feedback_events(intent_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_feedback_events_proposal ON feedback_events(proposal_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_drift_events_project ON drift_events(project)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_drift_events_intent ON drift_events(intent_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_drift_events_type ON drift_events(drift_type)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_drift_events_status ON drift_events(status)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_plan_versions_project ON plan_versions(project)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_plan_versions_intent ON plan_versions(intent_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_plan_versions_status ON plan_versions(status)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_event_bus_messages_project ON event_bus_messages(project)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_event_bus_messages_topic ON event_bus_messages(topic)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_event_bus_messages_subscriber ON event_bus_messages(subscriber)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_event_bus_messages_status ON event_bus_messages(status)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_event_bus_messages_available ON event_bus_messages(available_at)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_runtime_schedule_items_project ON runtime_schedule_items(project)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_runtime_schedule_items_goal ON runtime_schedule_items(goal_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_runtime_schedule_items_run ON runtime_schedule_items(run_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_runtime_schedule_items_status ON runtime_schedule_items(status)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_runtime_schedule_items_available ON runtime_schedule_items(available_at)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_runtime_schedule_items_priority ON runtime_schedule_items(priority)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_resource_leases_project ON resource_leases(project)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_resource_leases_resource ON resource_leases(resource_type, resource_key)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_resource_leases_status ON resource_leases(status)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_resource_leases_schedule ON resource_leases(schedule_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_quality_scores_project ON quality_scores(project)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_quality_scores_goal ON quality_scores(goal_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_quality_scores_run ON quality_scores(run_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_quality_scores_created_at ON quality_scores(created_at)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_self_audit_findings_project ON self_audit_findings(project)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_self_audit_findings_goal ON self_audit_findings(goal_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_self_audit_findings_run ON self_audit_findings(run_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_self_audit_findings_status ON self_audit_findings(status)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_self_audit_findings_type ON self_audit_findings(finding_type)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_benchmark_runs_project ON benchmark_runs(project)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_benchmark_runs_goal ON benchmark_runs(goal_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_benchmark_runs_run ON benchmark_runs(run_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_benchmark_runs_status ON benchmark_runs(status)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_benchmark_runs_created_at ON benchmark_runs(created_at)")
     conn.execute(
         """
         CREATE UNIQUE INDEX IF NOT EXISTS idx_memory_items_import_key
@@ -599,7 +1124,7 @@ def migrate_schema(conn: sqlite3.Connection) -> None:
     conn.execute(
         """
         INSERT INTO schema_meta(key, value)
-        VALUES ('schema_version', '15')
+        VALUES ('schema_version', '21')
         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')
         """
     )

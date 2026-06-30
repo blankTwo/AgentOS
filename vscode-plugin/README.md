@@ -8,6 +8,7 @@
 
 - 把 Agent OS 安装到当前工作区
 - 让用户在 VSCode 中查看运行状态、健康状态和总览
+- 配置 LLM Semantic Compiler，用于把用户请求编译成 Mission IR
 - 将项目约束、计划、执行结果和运行记录保持在统一的 Agent OS 结构里
 
 ## 边界
@@ -15,7 +16,32 @@
 - 插件负责注入、查看和管理
 - 插件不替代核心 Agent OS 源码
 - 插件不承担聊天运行时
+- 插件配置的 LLM 只负责语义编译，不拥有最终写入、提交或部署权限
 - 插件不负责把业务逻辑散落到工作区之外
+
+## LLM 意图编译器
+
+Agent OS 默认使用本地规则算法识别意图。用户也可以在插件中配置 OpenAI-compatible LLM：
+
+- `apiKey`：保存到 VSCode SecretStorage，不写入项目文件
+- `baseUrl`：例如 `https://api.openai.com/v1`
+- `model`：用于 Mission IR 编译的模型
+- `provider`：用于状态展示和运行记录
+
+启用后链路是：
+
+```text
+User Request
+  -> LLM Semantic Compiler
+  -> Draft Mission IR
+  -> Agent OS Validator / Normalizer / Optimizer
+  -> Locked Mission IR
+  -> Execution Gate
+```
+
+LLM 调用失败、超时、返回非 JSON、字段不合规或权限越界时，Agent OS 会回退到本地规则算法。
+
+插件中的“测试意图编译器”会调用工作区内 `.agent-os/scripts/agent-runtime.py runtime-compile-mission`，因此测试结果与核心 Runtime 实际消费的 Locked Mission IR 保持一致。
 
 ## Memory
 
@@ -34,6 +60,7 @@
 - 注入当前工作区
 - 查看安装状态和健康状态
 - 打开合并后的总览页
+- 配置和测试意图编译器
 - 只负责查看和管理，不承担聊天运行时职责
 
 ## 命令
@@ -41,6 +68,8 @@
 - `Agent OS: 注入当前工作区`
 - `Agent OS: 刷新状态`
 - `Agent OS: 打开总览`
+- `Agent OS: 配置意图编译器`
+- `Agent OS: 测试意图编译器`
 
 ## 说明
 

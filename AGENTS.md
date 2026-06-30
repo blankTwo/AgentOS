@@ -18,6 +18,7 @@ The goals are:
 - Plan before executing complex work.
 - Provide user-visible execution intent before implementation for every task. Simple tasks may use one concise sentence; uncertain or risky tasks need a visible plan.
 - Do not modify code from guesses.
+- Respect the user's mutation intent. Diagnosis, review, analysis, or inspection requests are read-only by default unless the user explicitly authorizes fixes or file changes.
 - For L2+ work, prefer Agent Runtime records for goals, tasks, capability state, policy, verification, and recovery.
 - Record durable lessons, but keep memory isolated.
 - Select skills by task layer; use the tech stack as implementation context.
@@ -225,6 +226,53 @@ Every workflow must begin with user-visible intent:
 Runtime records, task queues, memory hits, or internal notes never replace user-visible intent or plan.
 
 The agent must not say "plan is ready", "plan is set", "policy is decided", or equivalent unless the concrete intent or plan has already been shown.
+
+### Mutation Authorization Gate
+Before changing source code, tests, configuration, project docs, project memory, or any user-project file, classify the user's mutation authorization.
+
+Authorization states:
+- `read-only`: the user asks to investigate, diagnose, inspect, review, analyze, audit, compare, explain, or find the cause without asking for a fix.
+- `fix-authorized`: the user explicitly asks to fix, modify, implement, add, remove, update, refactor, optimize, commit, or directly handle the change.
+- `ambiguous`: the request mixes diagnosis and possible action, or the user's words do not clearly allow file mutation.
+
+Read-only trigger examples:
+- "排查一下", "好好排查", "分析一下", "定位原因", "看看为什么", "检查一下", "review", "audit", "explain why", "find the root cause".
+
+Fix-authorized trigger examples:
+- "修一下", "修复", "改一下", "实现", "加上", "删除", "更新", "落地", "直接处理", "提交".
+
+Rules:
+- In `read-only` mode, do not edit business code, tests, docs, memory, config, generated files, or project-local Agent OS files.
+- In `read-only` mode, allowed actions are reading files, searching code, running safe diagnostic commands, reproducing behavior, and reporting evidence.
+- In `read-only` mode, final output must include the root cause or candidate causes, evidence, recommended fix, risk, and validation plan. Ask for approval before applying any fix when a concrete patch is needed.
+- In `ambiguous` mode, default to read-only diagnosis until the user confirms mutation.
+- A later user message that only redirects the investigation, such as "did you check the upstream method?", does not authorize mutation.
+- Existing dirty files are evidence only. Do not complete, reshape, or add tests around them unless mutation is authorized.
+- Runtime records may be written only to local Agent Runtime storage when required; do not update project memory or project docs during read-only diagnosis unless the user explicitly asks to record the finding.
+
+### Mission IR Gate
+Before Agent Runtime execution, compile the user request into Mission IR.
+
+Compiler sources:
+- Builtin deterministic rules are the default and must always be available.
+- A configured LLM Semantic Compiler may produce Draft Mission IR, but it does not execute tasks and does not own final permission decisions.
+
+Pipeline:
+1. User request
+2. Semantic Compiler
+3. Draft Mission IR
+4. Validator / Normalizer / Optimizer
+5. Locked Mission IR
+6. Execution Gate
+7. Runtime
+
+Rules:
+- Runtime consumes Locked Mission IR, not raw natural language or unvalidated LLM output.
+- LLM output must be JSON-parsed, schema-validated, normalized, and permission-tightened before use.
+- Markdown code fences, extra prose, unknown deliverables, unknown evidence types, or missing fields must be cleaned or normalized.
+- If LLM compilation fails, times out, returns invalid JSON, or produces unsafe permissions, fall back to builtin deterministic rules.
+- A read-only local authorization decision cannot be widened by LLM output.
+- `readonly=true` or `allowWrite=false` blocks write, patch, delete, commit, deploy, docs, and memory mutations until explicit user approval.
 
 ### Language Boundary
 Agent OS model-facing files should use English by default:
@@ -473,19 +521,21 @@ The main agent remains accountable for Memory Gate completion.
 Every task follows:
 1. Context Gate
 2. Workflow Gate
-3. User-visible intent or plan
-4. Evidence Gate
-5. Capability Discovery Gate when capability work is triggered
-6. Risk Gate
-7. Planning Gate
-8. Agent Runtime Gate when triggered
-9. Select matching skills
-10. Load detailed memory
-11. Implement changes
-12. Validation Gate
-13. Documentation Gate
-14. Memory Gate
-15. Evaluate evolution candidates
+3. Mutation Authorization Gate
+4. Mission IR Gate
+5. User-visible intent or plan
+6. Evidence Gate
+7. Capability Discovery Gate when capability work is triggered
+8. Risk Gate
+9. Planning Gate
+10. Agent Runtime Gate when triggered
+11. Select matching skills
+12. Load detailed memory
+13. Implement changes only when mutation is authorized
+14. Validation Gate
+15. Documentation Gate
+16. Memory Gate
+17. Evaluate evolution candidates
 
 Memory Summary is for fast project context. Detailed Memory is for implementation-relevant decisions, patterns, and previous fixes. Skills are selected after gates, not before gates.
 

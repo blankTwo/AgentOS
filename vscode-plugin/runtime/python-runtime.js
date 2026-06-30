@@ -219,7 +219,7 @@ async function ensureRuntime(extensionPath) {
   return discoveredPython;
 }
 
-async function runPython(extensionPath, args, cwd) {
+async function runPython(extensionPath, args, cwd, envExtra = {}) {
   const pythonPath = await ensureRuntime(extensionPath);
   if (!pythonPath) {
     return { code: 127, stdout: "", stderr: "No bundled Python runtime available for this platform.", executable: null };
@@ -227,7 +227,7 @@ async function runPython(extensionPath, args, cwd) {
   const child = cp.spawn(pythonPath, args, {
     cwd,
     shell: false,
-    env: process.env,
+    env: { ...process.env, ...envExtra },
   });
   let stdout = "";
   let stderr = "";

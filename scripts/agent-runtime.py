@@ -55,6 +55,18 @@ RUNTIME_KINDS = (
     "reflection",
     "improvement",
     "event",
+    "intent",
+    "action-proposal",
+    "feedback",
+    "drift",
+    "approval",
+    "plan-version",
+    "event-message",
+    "schedule-item",
+    "resource-lease",
+    "quality-score",
+    "self-audit-finding",
+    "benchmark",
 )
 
 EVENT_TYPES = (
@@ -85,11 +97,26 @@ EVENT_TYPES = (
     "AdapterRegistered",
     "MetricsRecorded",
     "TraceExported",
+    "IntentDetected",
+    "ActionProposed",
+    "ActionBlocked",
+    "ActionApproved",
+    "FeedbackRecorded",
+    "DriftDetected",
+    "ReanchorRequested",
+    "PlanRevised",
 )
+
+EVENT_BUS_STATUSES = ("pending", "delivered", "acknowledged", "failed", "cancelled")
+SCHEDULE_STATUSES = ("queued", "ready", "running", "completed", "blocked", "cancelled")
+RESOURCE_TYPES = ("shell", "git", "api", "browser", "model", "subagent", "memory", "workspace", "custom")
+RESOURCE_LEASE_STATUSES = ("requested", "granted", "denied", "released", "expired")
+SELF_AUDIT_STATUSES = ("open", "acknowledged", "resolved", "ignored")
+BENCHMARK_DIRECTIONS = ("lower-is-better", "higher-is-better", "equal")
 
 MODEL_PROVIDERS = ("openai", "anthropic", "google", "qwen", "deepseek", "local", "mock", "custom")
 SUBAGENT_ROLES = ("planner", "executor", "reviewer", "verifier", "memory-recorder")
-HOST_TYPES = ("codex", "claude", "cursor", "vscode", "cli", "mcp", "custom")
+HOST_TYPES = ("codex", "claude", "qwen", "cursor", "vscode", "cli", "mcp", "custom")
 HOST_CAPABILITY_PROTOCOL = {
     "codex": {
         "shell",
@@ -110,6 +137,14 @@ HOST_CAPABILITY_PROTOCOL = {
         "memory",
         "tool-runtime",
         "subagent-runtime",
+    },
+    "qwen": {
+        "shell",
+        "git",
+        "runtime-cli",
+        "skills",
+        "memory",
+        "tool-runtime",
     },
     "cursor": {
         "shell",
@@ -150,7 +185,7 @@ HOST_CAPABILITY_PROTOCOL = {
     "custom": set(),
 }
 DOCTOR_CHECKS = ("directories", "agents", "rules", "skills", "memory", "runtime")
-CURRENT_SCHEMA_VERSION = "15"
+CURRENT_SCHEMA_VERSION = "21"
 SECRET_PATTERNS = {
     "generic_secret": re.compile(r"(?i)\b(secret|token|api[_-]?key|password)\b\s*[:=]\s*['\"]?([A-Za-z0-9_\-]{16,})"),
     "private_key": re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----"),
@@ -184,8 +219,132 @@ TASK_LAYER_KEYWORDS = {
     "Integration": ("integration", "linkage", "login", "payment", "webhook", "sdk", "end-to-end", "e2e"),
     "Runtime": ("runtime", "script", "build", "deploy", "dependency", "environment", "agent", "agent os"),
     "Test": ("test", "regression", "unittest", "pytest", "jest"),
-    "Bugfix": ("bug", "fix", "error", "exception", "failure", "broken", "regression"),
+    "Bugfix": ("bug", "fix", "error", "exception", "failure", "broken", "regression", "排查", "分析", "定位", "异常", "报错", "失败"),
     "Refactor": ("refactor", "split", "restructure", "maintainability", "responsibility", "reuse"),
+}
+
+READ_ONLY_INTENT_TOKENS = (
+    "investigate",
+    "diagnose",
+    "inspect",
+    "review",
+    "audit",
+    "analyze",
+    "analyse",
+    "explain why",
+    "find the root cause",
+    "look into",
+    "排查",
+    "好好排查",
+    "分析",
+    "定位原因",
+    "看看为什么",
+    "检查一下",
+)
+
+MUTATION_INTENT_TOKENS = (
+    "fix",
+    "modify",
+    "implement",
+    "add",
+    "remove",
+    "delete",
+    "update",
+    "refactor",
+    "optimize",
+    "commit",
+    "directly handle",
+    "修一下",
+    "修复",
+    "改一下",
+    "修改",
+    "实现",
+    "加上",
+    "删除",
+    "更新",
+    "落地",
+    "直接处理",
+    "提交",
+    "优化",
+    "重构",
+)
+
+READ_ONLY_OVERRIDE_TOKENS = (
+    "do not modify",
+    "don't modify",
+    "no changes",
+    "read-only",
+    "readonly",
+    "只读",
+    "不要修改",
+    "不要改",
+    "先别改",
+    "不用改",
+    "只排查",
+    "只分析",
+)
+
+INTENT_TYPES = ("query", "diagnosis", "review", "bugfix", "fix", "feature", "refactor", "test", "commit", "task")
+MUTATION_AUTHORIZATIONS = ("read-only", "fix-authorized", "ambiguous")
+MISSION_TYPES = (
+    "diagnose",
+    "fix",
+    "implement",
+    "refactor",
+    "review",
+    "explain",
+    "test",
+    "document",
+    "release",
+    "agent_os_evolution",
+)
+MISSION_MODES = ("readonly", "plan_first", "execute_allowed", "approval_required")
+MISSION_AMBIGUITIES = ("low", "medium", "high")
+MISSION_IR_VERSION = "mission-ir/v1"
+INTENT_PHASES = (
+    "parsed",
+    "explaining",
+    "planning",
+    "awaiting-approval",
+    "approved",
+    "executing",
+    "verifying",
+    "completed",
+    "blocked",
+)
+ACTION_TYPES = ("read", "write", "patch", "delete", "commit", "deploy", "memory", "docs", "verify", "shell", "git", "api", "browser")
+DRIFT_TYPES = ("mutation", "scope", "tool", "risk", "evidence", "plan", "confidence", "role")
+
+TOOL_REGISTRY: Dict[str, Dict[str, Any]] = {
+    "file.read": {"actions": {"read"}, "description": "Read files or inspect local content."},
+    "file.write": {"actions": {"write"}, "description": "Create or update files."},
+    "patch.apply": {"actions": {"patch", "write"}, "description": "Apply source or document patches."},
+    "shell.safe": {"actions": {"read", "verify", "shell"}, "description": "Run allowlisted diagnostic or verification shell commands."},
+    "shell.unsafe": {"actions": {"shell", "write"}, "description": "Run non-allowlisted shell commands."},
+    "git.read": {"actions": {"read", "git"}, "description": "Inspect git status, branch, log, or diff."},
+    "git.write": {"actions": {"git", "commit", "write"}, "description": "Mutate git state, commit, reset, clean, merge, or push."},
+    "api.read": {"actions": {"read", "api"}, "description": "Call read-only API or HTTP checks."},
+    "api.write": {"actions": {"api", "write"}, "description": "Call mutating API requests."},
+    "browser.read": {"actions": {"read", "browser"}, "description": "Open, inspect, screenshot, or check browser state."},
+    "browser.write": {"actions": {"browser", "write"}, "description": "Click, type, or otherwise mutate browser state."},
+    "memory.write": {"actions": {"memory", "write"}, "description": "Write project memory or structured memory records."},
+    "docs.write": {"actions": {"docs", "write"}, "description": "Create or update project documentation."},
+    "deploy": {"actions": {"deploy", "write"}, "description": "Deploy, publish, release, or alter production runtime."},
+}
+
+READ_ONLY_BLOCKED_ACTIONS = {"write", "patch", "delete", "commit", "deploy", "memory", "docs"}
+
+MISSION_TO_INTENT = {
+    "diagnose": "diagnosis",
+    "fix": "fix",
+    "implement": "feature",
+    "refactor": "refactor",
+    "review": "review",
+    "explain": "query",
+    "test": "test",
+    "document": "task",
+    "release": "task",
+    "agent_os_evolution": "task",
 }
 
 SKILL_BY_LAYER = {
@@ -344,6 +503,8 @@ def detect_task_layers(request: str, files: Optional[List[str]] = None) -> List[
 
 def detect_intent(request: str) -> str:
     lower = request.lower()
+    if any(token in lower for token in READ_ONLY_INTENT_TOKENS):
+        return "diagnosis"
     if any(token in lower for token in ("fix", "bug", "error", "broken", "failure", "regression")):
         return "bugfix"
     if any(token in lower for token in ("implement", "add", "create", "connect", "support", "complete")):
@@ -355,6 +516,545 @@ def detect_intent(request: str) -> str:
     if any(token in lower for token in ("review", "inspect", "audit")):
         return "review"
     return "task"
+
+
+def detect_mutation_authorization(request: str) -> str:
+    lower = request.lower()
+    if any(token in lower for token in READ_ONLY_OVERRIDE_TOKENS):
+        return "read-only"
+
+    has_read_only = any(token in lower for token in READ_ONLY_INTENT_TOKENS)
+    has_mutation = any(token in lower for token in MUTATION_INTENT_TOKENS)
+
+    if has_read_only and has_mutation:
+        return "ambiguous"
+    if has_read_only:
+        return "read-only"
+    if has_mutation:
+        return "fix-authorized"
+    return "ambiguous"
+
+
+def mission_type_from_intent(intent: str) -> str:
+    return {
+        "diagnosis": "diagnose",
+        "bugfix": "fix",
+        "fix": "fix",
+        "feature": "implement",
+        "refactor": "refactor",
+        "review": "review",
+        "test": "test",
+        "commit": "release",
+        "query": "explain",
+    }.get(intent, "explain")
+
+
+def mission_mode_for(intent: str, mutation_authorization: str, scale: str) -> str:
+    if mutation_authorization == "read-only" or intent in {"diagnosis", "review", "query"}:
+        return "readonly"
+    if mutation_authorization == "ambiguous":
+        return "approval_required"
+    if scale in {"L2", "L3", "L4"}:
+        return "plan_first"
+    return "execute_allowed"
+
+
+def mission_constraints_for(mutation_authorization: str) -> Dict[str, bool]:
+    readonly = mutation_authorization != "fix-authorized"
+    return {
+        "readonly": readonly,
+        "allowWrite": not readonly,
+        "allowCommit": mutation_authorization == "fix-authorized",
+        "allowDeploy": False,
+        "requireApprovalBeforeMutation": readonly,
+    }
+
+
+def builtin_mission_ir(context: Dict[str, Any]) -> Dict[str, Any]:
+    intent = context["intent"]
+    mutation_authorization = context["mutation_authorization"]
+    mode = mission_mode_for(intent, mutation_authorization, context["scale"])
+    evidence_required = intent in {"diagnosis", "bugfix", "review"} or mutation_authorization != "fix-authorized"
+    deliverables = ["conclusion"]
+    if intent in {"diagnosis", "bugfix"}:
+        deliverables = ["root_cause", "evidence", "conclusion", "repair_plan"]
+    elif intent == "review":
+        deliverables = ["evidence", "conclusion", "recommendation"]
+    elif mutation_authorization == "fix-authorized":
+        deliverables = ["implementation", "verification"]
+    return {
+        "specVersion": MISSION_IR_VERSION,
+        "source": {"compiler": "builtin-rules", "fallback": False},
+        "mission": {"type": mission_type_from_intent(intent), "mode": mode},
+        "intent": {
+            "primary": intent,
+            "confidence": 0.9 if mutation_authorization == "read-only" else 0.72,
+            "ambiguity": "medium" if mutation_authorization == "ambiguous" else "low",
+        },
+        "constraints": mission_constraints_for(mutation_authorization),
+        "scope": {
+            "targetProject": context["project"],
+            "suspectedFiles": context["files"],
+            "affectedLayers": context["task_layers"],
+        },
+        "deliverables": deliverables,
+        "evidenceRequirements": {
+            "required": evidence_required,
+            "types": ["code_location", "logs", "reproduction"] if evidence_required else [],
+            "minimumBeforeAction": 2 if evidence_required else 0,
+        },
+        "successCriteria": (
+            ["identify_root_cause", "provide_evidence", "propose_repair_plan"]
+            if intent in {"diagnosis", "bugfix"}
+            else ["satisfy_user_request", "provide_verification"]
+        ),
+        "clarification": [],
+        "feedbackPolicy": {
+            "detectDrift": True,
+            "recompileOnNewEvidence": True,
+            "stopOnIntentMismatch": True,
+        },
+    }
+
+
+def mission_compiler_prompt(request: str) -> Tuple[str, str]:
+    system = (
+        "You are Agent OS Semantic Compiler.\n"
+        "Compile a user's natural language request into Mission IR.\n"
+        "Do not execute tasks, inspect files, edit files, commit, deploy, or provide implementation advice.\n"
+        "Return strict JSON only. No markdown. No extra text.\n\n"
+        "Safety rules:\n"
+        "- Diagnosis, investigation, analysis, inspection, review, explanation, troubleshooting, "
+        "\"排查\", \"分析\", \"看看为什么\", \"定位原因\" are readonly by default.\n"
+        "- Mutation is allowed only when the user explicitly asks to fix, modify, implement, add, "
+        "delete, update, refactor, commit, deploy, install, or generate files.\n"
+        "- If uncertain, preserve safety: readonly=true, allowWrite=false, "
+        "requireApprovalBeforeMutation=true, ambiguity=\"high\"."
+    )
+    user = (
+        "Compile this USER_REQUEST into Mission IR JSON.\n\n"
+        "Required JSON shape:\n"
+        "{\n"
+        "  \"specVersion\": \"mission-ir/v1\",\n"
+        "  \"mission\": {\n"
+        "    \"type\": \"diagnose|fix|implement|refactor|review|explain|test|document|release|agent_os_evolution\",\n"
+        "    \"mode\": \"readonly|plan_first|execute_allowed|approval_required\"\n"
+        "  },\n"
+        "  \"intent\": {\n"
+        "    \"primary\": \"string\",\n"
+        "    \"confidence\": 0.0,\n"
+        "    \"ambiguity\": \"low|medium|high\"\n"
+        "  },\n"
+        "  \"constraints\": {\n"
+        "    \"readonly\": true,\n"
+        "    \"allowWrite\": false,\n"
+        "    \"allowCommit\": false,\n"
+        "    \"allowDeploy\": false,\n"
+        "    \"requireApprovalBeforeMutation\": true\n"
+        "  },\n"
+        "  \"deliverables\": [\"root_cause\", \"evidence\", \"conclusion\", \"repair_plan\"],\n"
+        "  \"evidenceRequirements\": {\n"
+        "    \"required\": true,\n"
+        "    \"types\": [\"code_location\", \"logs\", \"reproduction\"],\n"
+        "    \"minimumBeforeAction\": 2\n"
+        "  },\n"
+        "  \"successCriteria\": [\"identify_root_cause\", \"provide_evidence\", \"propose_repair_plan\"],\n"
+        "  \"clarification\": []\n"
+        "}\n\n"
+        f"USER_REQUEST:\n{request}\n"
+    )
+    return system, user
+
+
+def strip_json_fence(text: str) -> str:
+    value = text.strip()
+    fence = re.match(r"^```(?:json)?\s*([\s\S]*?)\s*```$", value, flags=re.IGNORECASE)
+    if fence:
+        return fence.group(1).strip()
+    start = value.find("{")
+    end = value.rfind("}")
+    if start >= 0 and end > start:
+        return value[start : end + 1].strip()
+    return value
+
+
+def parse_mission_ir_text(text: str) -> Dict[str, Any]:
+    cleaned = strip_json_fence(text)
+    try:
+        data = json.loads(cleaned)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Mission compiler returned invalid JSON: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ValueError("Mission compiler output must be a JSON object")
+    return data
+
+
+def normalize_deliverables(values: Any, mission_type: str) -> List[str]:
+    allowed = {
+        "root_cause",
+        "evidence",
+        "conclusion",
+        "repair_plan",
+        "implementation",
+        "tests",
+        "review",
+        "documentation",
+        "verification",
+        "recommendation",
+    }
+    aliases = {
+        "reason": "root_cause",
+        "repair": "repair_plan",
+        "fix_plan": "repair_plan",
+        "reproduction_steps": "evidence",
+        "state_inspection": "evidence",
+    }
+    raw = values if isinstance(values, list) else []
+    normalized: List[str] = []
+    for item in raw:
+        key = aliases.get(str(item), str(item))
+        if key in allowed and key not in normalized:
+            normalized.append(key)
+    if not normalized:
+        normalized = ["conclusion"]
+    if mission_type == "diagnose":
+        for required in ("root_cause", "evidence", "conclusion", "repair_plan"):
+            if required not in normalized:
+                normalized.append(required)
+    return normalized
+
+
+def normalize_evidence_requirements(value: Any, readonly: bool) -> Dict[str, Any]:
+    source = value if isinstance(value, dict) else {}
+    types = source.get("types") if isinstance(source.get("types"), list) else []
+    allowed = {"code_location", "logs", "reproduction", "test_result", "api_trace", "git_diff", "screenshot"}
+    aliases = {
+        "state_inspection": "code_location",
+        "timing_analysis": "logs",
+        "code_evidence": "code_location",
+    }
+    normalized_types: List[str] = []
+    for item in types:
+        key = aliases.get(str(item), str(item))
+        if key in allowed and key not in normalized_types:
+            normalized_types.append(key)
+    if readonly and not normalized_types:
+        normalized_types = ["code_location", "logs", "reproduction"]
+    minimum = source.get("minimumBeforeAction", 2 if readonly else 0)
+    try:
+        minimum_int = max(0, int(minimum))
+    except (TypeError, ValueError):
+        minimum_int = 2 if readonly else 0
+    return {
+        "required": bool(source.get("required", readonly)),
+        "types": normalized_types,
+        "minimumBeforeAction": minimum_int,
+    }
+
+
+def normalize_mission_ir(raw: Dict[str, Any], context: Dict[str, Any], *, compiler: str, fallback: bool) -> Dict[str, Any]:
+    mission = raw.get("mission") if isinstance(raw.get("mission"), dict) else {}
+    mission_type = str(mission.get("type") or mission_type_from_intent(context["intent"]))
+    if mission_type not in MISSION_TYPES:
+        mission_type = mission_type_from_intent(context["intent"])
+    mode = str(mission.get("mode") or mission_mode_for(context["intent"], context["mutation_authorization"], context["scale"]))
+    if mode not in MISSION_MODES:
+        mode = "approval_required"
+
+    constraints = raw.get("constraints") if isinstance(raw.get("constraints"), dict) else {}
+    readonly = bool(constraints.get("readonly", mode == "readonly"))
+    allow_write = bool(constraints.get("allowWrite", not readonly))
+    allow_commit = bool(constraints.get("allowCommit", False))
+    allow_deploy = bool(constraints.get("allowDeploy", False))
+    require_approval = bool(constraints.get("requireApprovalBeforeMutation", readonly or mode == "approval_required"))
+
+    local_authorization = context["mutation_authorization"]
+    if local_authorization == "read-only":
+        readonly = True
+        allow_write = False
+        allow_commit = False
+        allow_deploy = False
+        require_approval = True
+        mode = "readonly"
+        if mission_type not in {"diagnose", "review", "explain"}:
+            mission_type = "diagnose"
+    elif local_authorization == "ambiguous" and allow_write:
+        mode = "approval_required"
+        allow_write = False
+        allow_commit = False
+        allow_deploy = False
+        require_approval = True
+
+    intent = raw.get("intent") if isinstance(raw.get("intent"), dict) else {}
+    try:
+        confidence = float(intent.get("confidence", 0.65))
+    except (TypeError, ValueError):
+        confidence = 0.65
+    confidence = min(1.0, max(0.0, confidence))
+    ambiguity = str(intent.get("ambiguity") or ("medium" if local_authorization == "ambiguous" else "low"))
+    if ambiguity not in MISSION_AMBIGUITIES:
+        ambiguity = "medium"
+
+    normalized = {
+        "specVersion": MISSION_IR_VERSION,
+        "source": {
+            "compiler": compiler,
+            "fallback": fallback,
+        },
+        "mission": {"type": mission_type, "mode": mode},
+        "intent": {
+            "primary": str(intent.get("primary") or context["intent"]),
+            "confidence": confidence,
+            "ambiguity": ambiguity,
+        },
+        "constraints": {
+            "readonly": readonly,
+            "allowWrite": allow_write,
+            "allowCommit": allow_commit,
+            "allowDeploy": allow_deploy,
+            "requireApprovalBeforeMutation": require_approval,
+        },
+        "scope": {
+            "targetProject": context["project"],
+            "suspectedFiles": context["files"],
+            "affectedLayers": context["task_layers"],
+        },
+        "deliverables": normalize_deliverables(raw.get("deliverables"), mission_type),
+        "evidenceRequirements": normalize_evidence_requirements(raw.get("evidenceRequirements"), readonly),
+        "successCriteria": raw.get("successCriteria") if isinstance(raw.get("successCriteria"), list) else [],
+        "clarification": raw.get("clarification") if isinstance(raw.get("clarification"), list) else [],
+        "feedbackPolicy": {
+            "detectDrift": True,
+            "recompileOnNewEvidence": True,
+            "stopOnIntentMismatch": True,
+        },
+    }
+    if not normalized["successCriteria"]:
+        normalized["successCriteria"] = (
+            ["identify_root_cause", "provide_evidence", "propose_repair_plan"]
+            if mission_type == "diagnose"
+            else ["satisfy_user_request", "provide_verification"]
+        )
+    return normalized
+
+
+def mission_to_runtime_intent(mission_ir: Dict[str, Any], context: Dict[str, Any]) -> Tuple[str, str, float]:
+    mission_type = mission_ir["mission"]["type"]
+    constraints = mission_ir["constraints"]
+    intent_type = MISSION_TO_INTENT.get(mission_type, context["intent"])
+    if constraints["readonly"]:
+        mutation_authorization = "read-only"
+    elif mission_ir["mission"]["mode"] == "approval_required":
+        mutation_authorization = "ambiguous"
+    else:
+        mutation_authorization = "fix-authorized"
+    confidence = float(mission_ir["intent"].get("confidence", 0.65))
+    return intent_type, mutation_authorization, confidence
+
+
+def compile_mission_builtin(context: Dict[str, Any], *, fallback: bool = False, reason: Optional[str] = None) -> Dict[str, Any]:
+    raw = builtin_mission_ir(context)
+    raw.setdefault("source", {})["fallbackReason"] = reason
+    return normalize_mission_ir(raw, context, compiler="builtin-rules", fallback=fallback)
+
+
+def call_llm_mission_compiler(
+    *,
+    request: str,
+    provider: str,
+    base_url: str,
+    api_key: str,
+    model: str,
+    timeout: int = 60,
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    system, user = mission_compiler_prompt(request)
+    endpoint = base_url.rstrip("/") + "/chat/completions"
+    body = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        "temperature": 0,
+        "response_format": {"type": "json_object"},
+    }
+    started = time.time()
+    request_data = json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(
+        endpoint,
+        data=request_data,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        payload = json.loads(resp.read().decode("utf-8"))
+    duration_ms = int((time.time() - started) * 1000)
+    content = (((payload.get("choices") or [{}])[0].get("message") or {}).get("content") or "").strip()
+    if not content:
+        raise ValueError("Mission compiler returned an empty response")
+    metadata = {
+        "provider": provider,
+        "model": model,
+        "duration_ms": duration_ms,
+        "raw_response": content,
+    }
+    return parse_mission_ir_text(content), metadata
+
+
+def compile_mission_ir(
+    context: Dict[str, Any],
+    *,
+    provider: Optional[str] = None,
+    base_url: Optional[str] = None,
+    api_key: Optional[str] = None,
+    model: Optional[str] = None,
+    llm_response: Optional[str] = None,
+    timeout: int = 60,
+    no_fallback: bool = False,
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    if llm_response:
+        raw = parse_mission_ir_text(llm_response)
+        mission_ir = normalize_mission_ir(raw, context, compiler="provided-llm-output", fallback=False)
+        return mission_ir, {"compiler": "provided-llm-output", "fallback": False}
+
+    if provider and provider != "builtin":
+        try:
+            if not base_url or not api_key or not model:
+                raise ValueError("provider mode requires --base-url, --api-key or AGENT_OS_LLM_API_KEY, and --model")
+            raw, metadata = call_llm_mission_compiler(
+                request=context["request"],
+                provider=provider,
+                base_url=base_url,
+                api_key=api_key,
+                model=model,
+                timeout=timeout,
+            )
+            mission_ir = normalize_mission_ir(raw, context, compiler=f"llm:{provider}", fallback=False)
+            return mission_ir, {"compiler": f"llm:{provider}", "fallback": False, **metadata}
+        except Exception as exc:
+            if no_fallback:
+                raise
+            mission_ir = compile_mission_builtin(context, fallback=True, reason=str(exc))
+            mission_ir["source"]["fallbackReason"] = str(exc)
+            return mission_ir, {"compiler": f"llm:{provider}", "fallback": True, "error": str(exc)}
+
+    mission_ir = compile_mission_builtin(context)
+    return mission_ir, {"compiler": "builtin-rules", "fallback": False}
+
+
+def actions_for_intent(intent_type: str, mutation_authorization: str) -> tuple[list[str], list[str]]:
+    if mutation_authorization == "fix-authorized":
+        return sorted({action for meta in TOOL_REGISTRY.values() for action in meta["actions"]}), []
+    if mutation_authorization == "read-only" or intent_type in {"query", "diagnosis", "review"}:
+        allowed = ["read", "verify", "shell", "git", "api", "browser"]
+        blocked = sorted(READ_ONLY_BLOCKED_ACTIONS)
+        return allowed, blocked
+    if intent_type == "commit":
+        return ["read", "git", "commit"], ["deploy", "memory", "docs"]
+    return sorted({action for meta in TOOL_REGISTRY.values() for action in meta["actions"]}), []
+
+
+def tool_key_for_action(
+    *,
+    action_type: str,
+    tool: Optional[str],
+    command: Optional[str] = None,
+    method: Optional[str] = None,
+    browser_action: Optional[str] = None,
+    allow_unsafe: bool = False,
+) -> str:
+    if tool and tool in TOOL_REGISTRY:
+        return tool
+    if action_type in {"write", "patch", "delete"}:
+        return "patch.apply" if action_type == "patch" else "file.write"
+    if action_type == "memory":
+        return "memory.write"
+    if action_type == "docs":
+        return "docs.write"
+    if action_type == "deploy":
+        return "deploy"
+    if action_type == "commit":
+        return "git.write"
+    if action_type == "git":
+        normalized = (command or "").lower()
+        if any(token in normalized for token in (" commit", " reset", " clean", " merge", " push", " checkout ")):
+            return "git.write"
+        return "git.read"
+    if action_type == "api":
+        method_upper = (method or "GET").upper()
+        return "api.read" if method_upper in {"GET", "HEAD", "OPTIONS"} else "api.write"
+    if action_type == "browser":
+        return "browser.read" if (browser_action or "check-text") in {"open", "check-text", "screenshot"} else "browser.write"
+    if action_type == "shell":
+        return "shell.unsafe" if allow_unsafe or not command_is_allowed(command or "") else "shell.safe"
+    return "file.read"
+
+
+def scope_matches(target_paths: Optional[str], approved_scope: Optional[str]) -> tuple[bool, str]:
+    targets = [item.strip().replace("\\", "/") for item in (target_paths or "").split(",") if item.strip()]
+    scopes = [item.strip().replace("\\", "/") for item in (approved_scope or "").split(",") if item.strip()]
+    if not targets or not scopes:
+        return True, "no-target-or-scope"
+    for target in targets:
+        if not any(fnmatch.fnmatch(target, scope) or target.startswith(scope.rstrip("/") + "/") for scope in scopes):
+            return False, f"{target} outside approved scope"
+    return True, "within-approved-scope"
+
+
+def evaluate_action_gate(
+    *,
+    intent_type: str,
+    mutation_authorization: str,
+    action_type: str,
+    tool: str,
+    target_paths: Optional[str] = None,
+    approved_scope: Optional[str] = None,
+    confidence: float = 0.5,
+    risk_level: str = "normal",
+    user_approved: bool = False,
+    validation_plan: Optional[str] = None,
+) -> Dict[str, Any]:
+    allowed_actions, blocked_actions = actions_for_intent(intent_type, mutation_authorization)
+    tool_meta = TOOL_REGISTRY.get(tool, {"actions": {action_type}, "description": "custom tool"})
+    tool_actions = set(tool_meta["actions"])
+    action_set = {action_type, *tool_actions}
+    blocked_hits = sorted(action_set.intersection(blocked_actions))
+    scope_ok, scope_reason = scope_matches(target_paths, approved_scope)
+
+    missing: list[str] = []
+    if blocked_hits:
+        missing.append(f"blocked-actions:{','.join(blocked_hits)}")
+    if not scope_ok:
+        missing.append(f"scope:{scope_reason}")
+    if action_set.intersection(READ_ONLY_BLOCKED_ACTIONS) and mutation_authorization != "fix-authorized" and not user_approved:
+        missing.append("mutation-authorization")
+    if risk_level in {"high", "critical"} and not user_approved:
+        missing.append("high-risk-approval")
+    if action_set.intersection({"write", "patch", "delete", "commit", "deploy", "memory", "docs"}) and confidence < 0.7 and not user_approved:
+        missing.append("confidence-threshold")
+    if action_set.intersection({"write", "patch", "delete", "commit", "deploy"}) and not validation_plan:
+        missing.append("validation-plan")
+
+    if blocked_hits:
+        decision = "blocked"
+    elif missing:
+        decision = "requires-approval"
+    else:
+        decision = "allowed"
+
+    return {
+        "decision": decision,
+        "allowed_actions": allowed_actions,
+        "blocked_actions": blocked_actions,
+        "tool_actions": sorted(tool_actions),
+        "missing_requirements": missing,
+        "reason": "allowed" if decision == "allowed" else "; ".join(missing),
+        "scope": {"ok": scope_ok, "reason": scope_reason},
+        "requires_approval": decision == "requires-approval",
+    }
 
 
 def detect_scale(request: str, layers: List[str], files: Optional[List[str]] = None) -> str:
@@ -723,10 +1423,11 @@ def context_for_request(project: Optional[str], request: str, files: Optional[Li
     layers = detect_task_layers(request, files)
     scale = detect_scale(request, layers, files)
     intent = detect_intent(request)
+    mutation_authorization = detect_mutation_authorization(request)
     evidence = (
         f"project={project_evidence}; stack={stack_evidence}; "
         f"layers={','.join(layers)}; risk_signals={','.join(workspace_risk_signals(files))}; "
-        f"files={','.join(files or []) or 'none'}"
+        f"mutation_authorization={mutation_authorization}; files={','.join(files or []) or 'none'}"
     )
     return {
         "project": project_slug,
@@ -736,6 +1437,7 @@ def context_for_request(project: Optional[str], request: str, files: Optional[Li
         "task_layers": layers,
         "scale": scale,
         "intent": intent,
+        "mutation_authorization": mutation_authorization,
         "files": files or [],
         "evidence": evidence,
     }
@@ -746,9 +1448,9 @@ def record_runtime_context(conn, context: Dict[str, Any]) -> int:
         """
         INSERT INTO runtime_contexts(
             project, request, stack, stack_confidence, task_layers,
-            scale, intent, files, evidence
+            scale, intent, mutation_authorization, files, evidence
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             context["project"],
@@ -758,6 +1460,7 @@ def record_runtime_context(conn, context: Dict[str, Any]) -> int:
             normalize_csv(context["task_layers"]),
             context["scale"],
             context["intent"],
+            context["mutation_authorization"],
             normalize_csv(context["files"]),
             context["evidence"],
         ),
@@ -798,6 +1501,172 @@ def record_event(
         ),
     )
     return cur.lastrowid
+
+
+def intent_state_from_context(context: Dict[str, Any], *, goal_id: Optional[str] = None, run_id: Optional[str] = None, intent_id: Optional[str] = None) -> Dict[str, Any]:
+    mission_ir = context.get("mission_ir")
+    if mission_ir:
+        intent_type, mutation_authorization, mission_confidence = mission_to_runtime_intent(mission_ir, context)
+    else:
+        intent_type = context["intent"]
+        mutation_authorization = context["mutation_authorization"]
+        mission_confidence = None
+    allowed_actions, blocked_actions = actions_for_intent(intent_type, mutation_authorization)
+    explanation_required = int(intent_type in {"diagnosis", "bugfix"} or context["scale"] in {"L3", "L4"})
+    risk_level = "high" if context["scale"] in {"L3", "L4"} else "normal"
+    confidence = mission_confidence if mission_confidence is not None else (0.65 if mutation_authorization == "read-only" else 0.55)
+    phase = "explaining" if explanation_required else "parsed"
+    return {
+        "id": intent_id or f"intent-{uuid.uuid4().hex[:8]}",
+        "project": context["project"],
+        "goal_id": goal_id,
+        "run_id": run_id,
+        "original_request": context["request"],
+        "intent_type": intent_type,
+        "mutation_authorization": mutation_authorization,
+        "approved_scope": normalize_csv(context["files"]),
+        "current_phase": phase,
+        "confidence": confidence,
+        "risk_level": risk_level,
+        "allowed_actions": normalize_csv(allowed_actions),
+        "blocked_actions": normalize_csv(blocked_actions),
+        "explanation_required": explanation_required,
+        "evidence": context["evidence"],
+        "mission_ir_json": json.dumps(mission_ir, ensure_ascii=False, sort_keys=True) if mission_ir else None,
+        "compiler_metadata_json": json.dumps(context.get("compiler_metadata") or {}, ensure_ascii=False, sort_keys=True)
+        if mission_ir
+        else None,
+    }
+
+
+def upsert_intent_state(conn, state: Dict[str, Any]) -> str:
+    conn.execute(
+        """
+        INSERT INTO intent_states(
+            id, project, goal_id, run_id, original_request, intent_type,
+            mutation_authorization, approved_scope, current_phase, confidence,
+            risk_level, allowed_actions, blocked_actions, explanation_required, evidence,
+            mission_ir_json, compiler_metadata_json
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            project = excluded.project,
+            goal_id = excluded.goal_id,
+            run_id = excluded.run_id,
+            original_request = excluded.original_request,
+            intent_type = excluded.intent_type,
+            mutation_authorization = excluded.mutation_authorization,
+            approved_scope = excluded.approved_scope,
+            current_phase = excluded.current_phase,
+            confidence = excluded.confidence,
+            risk_level = excluded.risk_level,
+            allowed_actions = excluded.allowed_actions,
+            blocked_actions = excluded.blocked_actions,
+            explanation_required = excluded.explanation_required,
+            evidence = excluded.evidence,
+            mission_ir_json = excluded.mission_ir_json,
+            compiler_metadata_json = excluded.compiler_metadata_json,
+            updated_at = datetime('now')
+        """,
+        (
+            state["id"],
+            state["project"],
+            state.get("goal_id"),
+            state.get("run_id"),
+            state["original_request"],
+            state["intent_type"],
+            state["mutation_authorization"],
+            state.get("approved_scope"),
+            state["current_phase"],
+            state["confidence"],
+            state["risk_level"],
+            state.get("allowed_actions"),
+            state.get("blocked_actions"),
+            int(state.get("explanation_required", 0)),
+            state.get("evidence"),
+            state.get("mission_ir_json"),
+            state.get("compiler_metadata_json"),
+        ),
+    )
+    return state["id"]
+
+
+def fetch_intent_state(conn, *, project: str, intent_id: Optional[str]) -> Optional[sqlite3.Row]:
+    if intent_id:
+        return conn.execute("SELECT * FROM intent_states WHERE project = ? AND id = ?", (project, intent_id)).fetchone()
+    return conn.execute(
+        """
+        SELECT *
+        FROM intent_states
+        WHERE project = ?
+        ORDER BY updated_at DESC
+        LIMIT 1
+        """,
+        (project,),
+    ).fetchone()
+
+
+def insert_action_proposal(
+    conn,
+    *,
+    project: str,
+    intent_id: Optional[str],
+    goal_id: Optional[str],
+    run_id: Optional[str],
+    action_type: str,
+    tool: str,
+    target_paths: Optional[str],
+    reason: str,
+    risk_level: str,
+    validation_plan: Optional[str],
+    gate: Dict[str, Any],
+    proposal_id: Optional[str] = None,
+) -> str:
+    proposal_id = proposal_id or f"action-{uuid.uuid4().hex[:8]}"
+    status = gate["decision"]
+    conn.execute(
+        """
+        INSERT INTO action_proposals(
+            id, project, intent_id, goal_id, run_id, action_type, tool, target_paths,
+            reason, risk_level, status, gate_decision, gate_reason, requires_approval,
+            validation_plan
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            intent_id = excluded.intent_id,
+            goal_id = excluded.goal_id,
+            run_id = excluded.run_id,
+            action_type = excluded.action_type,
+            tool = excluded.tool,
+            target_paths = excluded.target_paths,
+            reason = excluded.reason,
+            risk_level = excluded.risk_level,
+            status = excluded.status,
+            gate_decision = excluded.gate_decision,
+            gate_reason = excluded.gate_reason,
+            requires_approval = excluded.requires_approval,
+            validation_plan = excluded.validation_plan,
+            updated_at = datetime('now')
+        """,
+        (
+            proposal_id,
+            project,
+            intent_id,
+            goal_id,
+            run_id,
+            action_type,
+            tool,
+            target_paths,
+            reason,
+            risk_level,
+            status,
+            gate["decision"],
+            gate["reason"],
+            int(gate["requires_approval"]),
+            validation_plan,
+        ),
+    )
+    return proposal_id
 
 
 def transition_state(
@@ -2366,6 +3235,337 @@ def cmd_runtime_next(args: argparse.Namespace) -> None:
     )
 
 
+def parse_required_resources(value: Optional[str]) -> list[str]:
+    return [item.strip() for item in (value or "").split(",") if item.strip()]
+
+
+def open_resource_conflicts(
+    conn: sqlite3.Connection,
+    *,
+    project: str,
+    required_resources: list[str],
+) -> list[Dict[str, Any]]:
+    conflicts: list[Dict[str, Any]] = []
+    for item in required_resources:
+        if ":" in item:
+            resource_type, resource_key = item.split(":", 1)
+        else:
+            resource_type, resource_key = "custom", item
+        row = conn.execute(
+            """
+            SELECT *
+            FROM resource_leases
+            WHERE project = ?
+              AND resource_type = ?
+              AND resource_key = ?
+              AND status = 'granted'
+              AND (expires_at IS NULL OR datetime(expires_at) > datetime('now'))
+            ORDER BY granted_at DESC
+            LIMIT 1
+            """,
+            (project, resource_type, resource_key),
+        ).fetchone()
+        if row:
+            conflicts.append(row_to_dict(row))
+    return conflicts
+
+
+def cmd_runtime_schedule(args: argparse.Namespace) -> None:
+    schedule_id = args.id or f"schedule-{uuid.uuid4().hex[:8]}"
+    status = args.status or "queued"
+    with connect(args.db) as conn:
+        ensure_initialized(conn, args.schema)
+        conn.execute(
+            """
+            INSERT INTO runtime_schedule_items(
+                id, project, run_id, goal_id, task_id, intent_id, action_type,
+                assigned_role, status, priority, depends_on, required_resources,
+                schedule_reason, next_action, available_at, blocker, evidence
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')), ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                run_id = excluded.run_id,
+                goal_id = excluded.goal_id,
+                task_id = excluded.task_id,
+                intent_id = excluded.intent_id,
+                action_type = excluded.action_type,
+                assigned_role = excluded.assigned_role,
+                status = excluded.status,
+                priority = excluded.priority,
+                depends_on = excluded.depends_on,
+                required_resources = excluded.required_resources,
+                schedule_reason = excluded.schedule_reason,
+                next_action = excluded.next_action,
+                available_at = excluded.available_at,
+                blocker = excluded.blocker,
+                evidence = excluded.evidence,
+                updated_at = datetime('now')
+            """,
+            (
+                schedule_id,
+                args.project,
+                args.run_id,
+                args.goal_id,
+                args.task_id,
+                args.intent_id,
+                args.action_type,
+                args.assigned_role,
+                status,
+                args.priority,
+                args.depends_on,
+                args.required_resources,
+                args.reason,
+                args.next_action,
+                args.available_at,
+                args.blocker,
+                args.evidence,
+            ),
+        )
+        record_event(
+            conn,
+            project=args.project,
+            run_id=args.run_id,
+            goal_id=args.goal_id,
+            task_id=args.task_id,
+            event_type="KernelStep",
+            source="runtime-schedule",
+            summary=f"Scheduled {args.action_type} as {schedule_id}.",
+            payload={
+                "schedule_id": schedule_id,
+                "status": status,
+                "priority": args.priority,
+                "required_resources": parse_required_resources(args.required_resources),
+            },
+        )
+        conn.commit()
+    print_json({"ok": True, "id": schedule_id, "project": args.project, "status": status})
+
+
+def cmd_runtime_scheduler_next(args: argparse.Namespace) -> None:
+    with connect(args.db) as conn:
+        ensure_initialized(conn, args.schema)
+        rows = conn.execute(
+            """
+            SELECT *
+            FROM runtime_schedule_items
+            WHERE project = ?
+              AND (? IS NULL OR goal_id = ?)
+              AND status IN ('queued', 'ready')
+              AND datetime(available_at) <= datetime('now')
+            ORDER BY priority DESC, created_at
+            LIMIT ?
+            """,
+            (args.project, args.goal_id, args.goal_id, args.limit),
+        ).fetchall()
+        selected = None
+        blockers: list[Dict[str, Any]] = []
+        for row in rows:
+            dependencies = parse_required_resources(row["depends_on"])
+            if dependencies:
+                placeholders = ",".join("?" for _ in dependencies)
+                incomplete = conn.execute(
+                    f"""
+                    SELECT id, status
+                    FROM runtime_schedule_items
+                    WHERE project = ? AND id IN ({placeholders}) AND status != 'completed'
+                    """,
+                    [args.project, *dependencies],
+                ).fetchall()
+                if incomplete:
+                    blockers.append({"id": row["id"], "reason": "dependencies-incomplete", "dependencies": [row_to_dict(item) for item in incomplete]})
+                    continue
+            conflicts = open_resource_conflicts(
+                conn,
+                project=args.project,
+                required_resources=parse_required_resources(row["required_resources"]),
+            )
+            if conflicts:
+                blockers.append({"id": row["id"], "reason": "resources-busy", "resources": conflicts})
+                continue
+            selected = row
+            break
+        if selected and args.advance:
+            conn.execute(
+                """
+                UPDATE runtime_schedule_items
+                SET status = 'running',
+                    started_at = datetime('now'),
+                    updated_at = datetime('now')
+                WHERE project = ? AND id = ?
+                """,
+                (args.project, selected["id"]),
+            )
+            record_event(
+                conn,
+                project=args.project,
+                run_id=selected["run_id"],
+                goal_id=selected["goal_id"],
+                task_id=selected["task_id"],
+                event_type="KernelStep",
+                source="runtime-scheduler-next",
+                summary=f"Scheduler advanced {selected['id']} to running.",
+                payload={"schedule_id": selected["id"], "action_type": selected["action_type"]},
+            )
+            conn.commit()
+            selected = conn.execute(
+                "SELECT * FROM runtime_schedule_items WHERE project = ? AND id = ?",
+                (args.project, selected["id"]),
+            ).fetchone()
+    print_json(
+        {
+            "ok": selected is not None,
+            "project": args.project,
+            "selected": row_to_dict(selected) if selected else None,
+            "blockers": blockers,
+        }
+    )
+
+
+def cmd_runtime_schedule_complete(args: argparse.Namespace) -> None:
+    status = "completed" if args.ok else "blocked"
+    with connect(args.db) as conn:
+        ensure_initialized(conn, args.schema)
+        row = conn.execute(
+            "SELECT * FROM runtime_schedule_items WHERE project = ? AND id = ?",
+            (args.project, args.id),
+        ).fetchone()
+        if row is None:
+            raise SystemExit(f"Schedule item not found for project={args.project}: {args.id}")
+        conn.execute(
+            """
+            UPDATE runtime_schedule_items
+            SET status = ?,
+                completed_at = CASE WHEN ? = 'completed' THEN datetime('now') ELSE completed_at END,
+                blocker = ?,
+                evidence = COALESCE(?, evidence),
+                updated_at = datetime('now')
+            WHERE project = ? AND id = ?
+            """,
+            (status, status, args.blocker, args.evidence, args.project, args.id),
+        )
+        record_event(
+            conn,
+            project=args.project,
+            run_id=row["run_id"],
+            goal_id=row["goal_id"],
+            task_id=row["task_id"],
+            event_type="KernelStep",
+            source="runtime-schedule-complete",
+            summary=f"Schedule item {args.id} marked {status}.",
+            payload={"schedule_id": args.id, "status": status, "evidence": args.evidence, "blocker": args.blocker},
+            severity="info" if args.ok else "warning",
+        )
+        conn.commit()
+    print_json({"ok": args.ok, "id": args.id, "project": args.project, "status": status})
+
+
+def cmd_runtime_request_resource(args: argparse.Namespace) -> None:
+    lease_id = args.id or f"lease-{uuid.uuid4().hex[:8]}"
+    with connect(args.db) as conn:
+        ensure_initialized(conn, args.schema)
+        conflicts = open_resource_conflicts(
+            conn,
+            project=args.project,
+            required_resources=[f"{args.resource_type}:{args.resource_key}"],
+        )
+        status = "denied" if conflicts and not args.force else "granted"
+        conn.execute(
+            """
+            INSERT INTO resource_leases(
+                id, project, run_id, goal_id, task_id, schedule_id, resource_type,
+                resource_key, quantity, status, reason, expires_at, granted_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CASE WHEN ? = 'granted' THEN datetime('now') ELSE NULL END)
+            ON CONFLICT(id) DO UPDATE SET
+                run_id = excluded.run_id,
+                goal_id = excluded.goal_id,
+                task_id = excluded.task_id,
+                schedule_id = excluded.schedule_id,
+                resource_type = excluded.resource_type,
+                resource_key = excluded.resource_key,
+                quantity = excluded.quantity,
+                status = excluded.status,
+                reason = excluded.reason,
+                expires_at = excluded.expires_at,
+                granted_at = excluded.granted_at,
+                released_at = NULL,
+                updated_at = datetime('now')
+            """,
+            (
+                lease_id,
+                args.project,
+                args.run_id,
+                args.goal_id,
+                args.task_id,
+                args.schedule_id,
+                args.resource_type,
+                args.resource_key,
+                args.quantity,
+                status,
+                args.reason,
+                args.expires_at,
+                status,
+            ),
+        )
+        record_event(
+            conn,
+            project=args.project,
+            run_id=args.run_id,
+            goal_id=args.goal_id,
+            task_id=args.task_id,
+            event_type="KernelStep",
+            source="runtime-request-resource",
+            summary=f"Resource {args.resource_type}:{args.resource_key} lease {status}.",
+            payload={"lease_id": lease_id, "status": status, "conflicts": conflicts},
+            severity="info" if status == "granted" else "warning",
+        )
+        conn.commit()
+    print_json(
+        {
+            "ok": status == "granted",
+            "id": lease_id,
+            "project": args.project,
+            "status": status,
+            "conflicts": conflicts,
+        }
+    )
+
+
+def cmd_runtime_release_resource(args: argparse.Namespace) -> None:
+    with connect(args.db) as conn:
+        ensure_initialized(conn, args.schema)
+        row = conn.execute(
+            "SELECT * FROM resource_leases WHERE project = ? AND id = ?",
+            (args.project, args.id),
+        ).fetchone()
+        if row is None:
+            raise SystemExit(f"Resource lease not found for project={args.project}: {args.id}")
+        conn.execute(
+            """
+            UPDATE resource_leases
+            SET status = 'released',
+                released_at = datetime('now'),
+                reason = COALESCE(?, reason),
+                updated_at = datetime('now')
+            WHERE project = ? AND id = ?
+            """,
+            (args.reason, args.project, args.id),
+        )
+        record_event(
+            conn,
+            project=args.project,
+            run_id=row["run_id"],
+            goal_id=row["goal_id"],
+            task_id=row["task_id"],
+            event_type="KernelStep",
+            source="runtime-release-resource",
+            summary=f"Released resource lease {args.id}.",
+            payload={"lease_id": args.id, "reason": args.reason},
+        )
+        conn.commit()
+    print_json({"ok": True, "id": args.id, "project": args.project, "status": "released"})
+
+
 def cmd_runtime_detect_context(args: argparse.Namespace) -> None:
     context = context_for_request(args.project, args.request, args.files)
     context_id = None
@@ -2457,6 +3657,822 @@ def cmd_runtime_record_event(args: argparse.Namespace) -> None:
             "summary": args.summary,
         }
     )
+
+
+def cmd_runtime_publish_event(args: argparse.Namespace) -> None:
+    payload = {}
+    if args.payload_json:
+        try:
+            payload = json.loads(args.payload_json)
+        except json.JSONDecodeError as exc:
+            raise SystemExit(f"Invalid --payload-json: {exc}") from exc
+    message_id = args.id or f"event-msg-{uuid.uuid4().hex[:8]}"
+    with connect(args.db) as conn:
+        ensure_initialized(conn, args.schema)
+        event_id = None
+        if args.event_type:
+            event_id = record_event(
+                conn,
+                project=args.project,
+                run_id=args.run_id,
+                goal_id=args.goal_id,
+                task_id=args.task_id,
+                event_type=args.event_type,
+                source=args.source or "event-bus",
+                summary=args.summary,
+                payload=payload,
+                severity=args.severity,
+            )
+        conn.execute(
+            """
+            INSERT INTO event_bus_messages(
+                id, project, run_id, goal_id, task_id, event_id, topic, subscriber,
+                status, priority, payload_json, available_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, COALESCE(?, datetime('now')))
+            ON CONFLICT(id) DO UPDATE SET
+                run_id = excluded.run_id,
+                goal_id = excluded.goal_id,
+                task_id = excluded.task_id,
+                event_id = excluded.event_id,
+                topic = excluded.topic,
+                subscriber = excluded.subscriber,
+                status = 'pending',
+                priority = excluded.priority,
+                payload_json = excluded.payload_json,
+                available_at = excluded.available_at,
+                delivered_at = NULL,
+                acknowledged_at = NULL,
+                failure_detail = NULL,
+                updated_at = datetime('now')
+            """,
+            (
+                message_id,
+                args.project,
+                args.run_id,
+                args.goal_id,
+                args.task_id,
+                event_id,
+                args.topic,
+                args.subscriber,
+                args.priority,
+                json.dumps(payload, ensure_ascii=False),
+                args.available_at,
+            ),
+        )
+        conn.commit()
+    print_json(
+        {
+            "ok": True,
+            "id": message_id,
+            "event_id": event_id,
+            "project": args.project,
+            "topic": args.topic,
+            "subscriber": args.subscriber,
+            "status": "pending",
+        }
+    )
+
+
+def cmd_runtime_poll_events(args: argparse.Namespace) -> None:
+    with connect(args.db) as conn:
+        ensure_initialized(conn, args.schema)
+        rows = conn.execute(
+            """
+            SELECT *
+            FROM event_bus_messages
+            WHERE project = ?
+              AND status = 'pending'
+              AND (subscriber = ? OR subscriber = '*')
+              AND datetime(available_at) <= datetime('now')
+              AND (? IS NULL OR topic = ?)
+            ORDER BY priority DESC, created_at
+            LIMIT ?
+            """,
+            (args.project, args.subscriber, args.topic, args.topic, args.limit),
+        ).fetchall()
+        ids = [row["id"] for row in rows]
+        if args.deliver and ids:
+            placeholders = ",".join("?" for _ in ids)
+            conn.execute(
+                f"""
+                UPDATE event_bus_messages
+                SET status = 'delivered',
+                    delivered_at = datetime('now'),
+                    updated_at = datetime('now')
+                WHERE project = ? AND id IN ({placeholders})
+                """,
+                [args.project, *ids],
+            )
+            conn.commit()
+            rows = conn.execute(
+                f"""
+                SELECT *
+                FROM event_bus_messages
+                WHERE project = ? AND id IN ({placeholders})
+                ORDER BY priority DESC, created_at
+                """,
+                [args.project, *ids],
+            ).fetchall()
+    print_json(
+        {
+            "ok": True,
+            "project": args.project,
+            "subscriber": args.subscriber,
+            "topic": args.topic,
+            "messages": [row_to_dict(row) for row in rows],
+        }
+    )
+
+
+def cmd_runtime_ack_event(args: argparse.Namespace) -> None:
+    status = "acknowledged" if args.ok else "failed"
+    with connect(args.db) as conn:
+        ensure_initialized(conn, args.schema)
+        row = conn.execute(
+            "SELECT * FROM event_bus_messages WHERE project = ? AND id = ?",
+            (args.project, args.id),
+        ).fetchone()
+        if row is None:
+            raise SystemExit(f"Event bus message not found for project={args.project}: {args.id}")
+        conn.execute(
+            """
+            UPDATE event_bus_messages
+            SET status = ?,
+                acknowledged_at = CASE WHEN ? = 'acknowledged' THEN datetime('now') ELSE acknowledged_at END,
+                failure_detail = ?,
+                updated_at = datetime('now')
+            WHERE project = ? AND id = ?
+            """,
+            (status, status, args.failure_detail, args.project, args.id),
+        )
+        conn.commit()
+    print_json({"ok": args.ok, "id": args.id, "project": args.project, "status": status})
+
+
+def cmd_runtime_detect_intent(args: argparse.Namespace) -> None:
+    context = context_for_request(args.project, args.request, args.files)
+    provider = args.provider or os.environ.get("AGENT_OS_LLM_PROVIDER") or "builtin"
+    api_key = args.api_key or os.environ.get("AGENT_OS_LLM_API_KEY")
+    mission_ir, compiler_metadata = compile_mission_ir(
+        context,
+        provider=provider,
+        base_url=args.base_url or os.environ.get("AGENT_OS_LLM_BASE_URL"),
+        api_key=api_key,
+        model=args.model or os.environ.get("AGENT_OS_LLM_MODEL"),
+        llm_response=args.llm_response,
+        timeout=args.timeout,
+        no_fallback=args.no_fallback,
+    )
+    context["mission_ir"] = mission_ir
+    context["compiler_metadata"] = {
+        key: value for key, value in compiler_metadata.items() if key != "raw_response"
+    }
+    state = intent_state_from_context(
+        context,
+        goal_id=args.goal_id,
+        run_id=args.run_id,
+        intent_id=args.intent_id,
+    )
+    event_id = None
+    if args.record:
+        with connect(args.db) as conn:
+            ensure_initialized(conn, args.schema)
+            upsert_intent_state(conn, state)
+            event_id = record_event(
+                conn,
+                project=state["project"],
+                run_id=args.run_id,
+                goal_id=args.goal_id,
+                event_type="IntentDetected",
+                source="runtime-detect-intent",
+                summary=(
+                    f"Compiled {mission_ir['mission']['type']} mission with "
+                    f"{state['mutation_authorization']} mutation authorization."
+                ),
+                payload={"context": context, "intent": state},
+            )
+            conn.commit()
+    print_json(
+        {
+            "ok": True,
+            "event_id": event_id,
+            "context": context,
+            "mission_ir": mission_ir,
+            "compiler_metadata": compiler_metadata,
+            "intent": state,
+        }
+    )
+
+
+def cmd_runtime_compile_mission(args: argparse.Namespace) -> None:
+    context = context_for_request(args.project, args.request, args.files)
+    provider = args.provider or os.environ.get("AGENT_OS_LLM_PROVIDER") or "builtin"
+    api_key = args.api_key or os.environ.get("AGENT_OS_LLM_API_KEY")
+    mission_ir, compiler_metadata = compile_mission_ir(
+        context,
+        provider=provider,
+        base_url=args.base_url or os.environ.get("AGENT_OS_LLM_BASE_URL"),
+        api_key=api_key,
+        model=args.model or os.environ.get("AGENT_OS_LLM_MODEL"),
+        llm_response=args.llm_response,
+        timeout=args.timeout,
+        no_fallback=args.no_fallback,
+    )
+    intent_type, mutation_authorization, confidence = mission_to_runtime_intent(mission_ir, context)
+    print_json(
+        {
+            "ok": True,
+            "context": context,
+            "mission_ir": mission_ir,
+            "locked": True,
+            "runtime_mapping": {
+                "intent_type": intent_type,
+                "mutation_authorization": mutation_authorization,
+                "confidence": confidence,
+            },
+            "compiler_metadata": compiler_metadata,
+        }
+    )
+
+
+def cmd_runtime_tool_registry(args: argparse.Namespace) -> None:
+    tools = []
+    for name, meta in sorted(TOOL_REGISTRY.items()):
+        actions = sorted(meta["actions"])
+        if args.action and args.action not in actions:
+            continue
+        if args.write_only and not set(actions).intersection(READ_ONLY_BLOCKED_ACTIONS):
+            continue
+        tools.append({"tool": name, "actions": actions, "description": meta["description"]})
+    print_json(
+        {
+            "ok": True,
+            "tools": tools,
+            "read_only_blocked_actions": sorted(READ_ONLY_BLOCKED_ACTIONS),
+            "action_types": list(ACTION_TYPES),
+        }
+    )
+
+
+def action_gate_inputs_from_args(args: argparse.Namespace, conn: Optional[sqlite3.Connection] = None) -> Dict[str, Any]:
+    project = args.project
+    intent_row = None
+    if conn is not None and getattr(args, "intent_id", None):
+        intent_row = fetch_intent_state(conn, project=project, intent_id=args.intent_id)
+        if intent_row is None:
+            raise SystemExit(f"Intent not found for project={project}: {args.intent_id}")
+
+    intent_type = args.intent_type or (intent_row["intent_type"] if intent_row else "task")
+    mutation_authorization = args.mutation_authorization or (
+        intent_row["mutation_authorization"] if intent_row else "ambiguous"
+    )
+    approved_scope = args.approved_scope
+    if approved_scope is None and intent_row is not None:
+        approved_scope = intent_row["approved_scope"]
+    confidence = args.confidence
+    if confidence is None and intent_row is not None:
+        confidence = float(intent_row["confidence"])
+    if confidence is None:
+        confidence = 0.5
+    risk_level = args.risk_level or (intent_row["risk_level"] if intent_row else "normal")
+    action_type = args.action_type
+    if not action_type:
+        action_type = classify_tool_type(args.command or args.target, args.tool_type or None)
+        if action_type not in ACTION_TYPES:
+            action_type = "shell" if action_type == "shell" else "read"
+    tool = tool_key_for_action(
+        action_type=action_type,
+        tool=args.tool,
+        command=args.command,
+        method=getattr(args, "method", None),
+        browser_action=getattr(args, "browser_action", None),
+        allow_unsafe=getattr(args, "allow_unsafe", False),
+    )
+    gate = evaluate_action_gate(
+        intent_type=intent_type,
+        mutation_authorization=mutation_authorization,
+        action_type=action_type,
+        tool=tool,
+        target_paths=args.target_paths,
+        approved_scope=approved_scope,
+        confidence=confidence,
+        risk_level=risk_level,
+        user_approved=args.user_approved,
+        validation_plan=args.validation_plan,
+    )
+    return {
+        "project": project,
+        "intent_id": getattr(args, "intent_id", None),
+        "intent_type": intent_type,
+        "mutation_authorization": mutation_authorization,
+        "approved_scope": approved_scope,
+        "confidence": confidence,
+        "risk_level": risk_level,
+        "action_type": action_type,
+        "tool": tool,
+        "target_paths": args.target_paths,
+        "validation_plan": args.validation_plan,
+        "gate": gate,
+    }
+
+
+def cmd_runtime_validate_action(args: argparse.Namespace) -> None:
+    with connect(args.db) as conn:
+        ensure_initialized(conn, args.schema)
+        data = action_gate_inputs_from_args(args, conn)
+        if args.record:
+            record_event(
+                conn,
+                project=args.project,
+                run_id=args.run_id,
+                goal_id=args.goal_id,
+                event_type="ActionBlocked" if data["gate"]["decision"] == "blocked" else "ActionProposed",
+                source="runtime-validate-action",
+                summary=f"Action {data['action_type']} via {data['tool']} is {data['gate']['decision']}.",
+                payload=data,
+                severity="warning" if data["gate"]["decision"] != "allowed" else "info",
+            )
+            conn.commit()
+    print_json({"ok": data["gate"]["decision"] == "allowed", **data})
+
+
+def cmd_runtime_propose_action(args: argparse.Namespace) -> None:
+    with connect(args.db) as conn:
+        ensure_initialized(conn, args.schema)
+        data = action_gate_inputs_from_args(args, conn)
+        proposal_id = insert_action_proposal(
+            conn,
+            project=args.project,
+            intent_id=args.intent_id,
+            goal_id=args.goal_id,
+            run_id=args.run_id,
+            action_type=data["action_type"],
+            tool=data["tool"],
+            target_paths=args.target_paths,
+            reason=args.reason,
+            risk_level=data["risk_level"],
+            validation_plan=args.validation_plan,
+            gate=data["gate"],
+            proposal_id=args.id,
+        )
+        event_type = "ActionBlocked" if data["gate"]["decision"] == "blocked" else "ActionProposed"
+        event_id = record_event(
+            conn,
+            project=args.project,
+            run_id=args.run_id,
+            goal_id=args.goal_id,
+            event_type=event_type,
+            source="runtime-propose-action",
+            summary=f"Action proposal {proposal_id} is {data['gate']['decision']}.",
+            payload={**data, "proposal_id": proposal_id, "reason": args.reason},
+            severity="warning" if data["gate"]["decision"] != "allowed" else "info",
+        )
+        conn.commit()
+    print_json({"ok": data["gate"]["decision"] == "allowed", "id": proposal_id, "event_id": event_id, **data})
+
+
+def proposal_row_or_die(conn: sqlite3.Connection, *, project: str, proposal_id: str) -> sqlite3.Row:
+    row = conn.execute(
+        "SELECT * FROM action_proposals WHERE project = ? AND id = ?",
+        (project, proposal_id),
+    ).fetchone()
+    if row is None:
+        raise SystemExit(f"Action proposal not found for project={project}: {proposal_id}")
+    return row
+
+
+def cmd_runtime_execution_gate(args: argparse.Namespace) -> None:
+    with connect(args.db) as conn:
+        ensure_initialized(conn, args.schema)
+        if args.proposal_id:
+            proposal = proposal_row_or_die(conn, project=args.project, proposal_id=args.proposal_id)
+            intent = fetch_intent_state(conn, project=args.project, intent_id=proposal["intent_id"])
+            intent_type = args.intent_type or (intent["intent_type"] if intent else "task")
+            mutation_authorization = args.mutation_authorization or (
+                intent["mutation_authorization"] if intent else "ambiguous"
+            )
+            approved_scope = args.approved_scope or (intent["approved_scope"] if intent else None)
+            confidence = args.confidence if args.confidence is not None else (float(intent["confidence"]) if intent else 0.5)
+            risk_level = args.risk_level or proposal["risk_level"]
+            gate = evaluate_action_gate(
+                intent_type=intent_type,
+                mutation_authorization=mutation_authorization,
+                action_type=proposal["action_type"],
+                tool=proposal["tool"],
+                target_paths=proposal["target_paths"],
+                approved_scope=approved_scope,
+                confidence=confidence,
+                risk_level=risk_level,
+                user_approved=args.user_approved,
+                validation_plan=args.validation_plan or proposal["validation_plan"],
+            )
+            data = {
+                "project": args.project,
+                "proposal_id": args.proposal_id,
+                "intent_id": proposal["intent_id"],
+                "intent_type": intent_type,
+                "mutation_authorization": mutation_authorization,
+                "approved_scope": approved_scope,
+                "confidence": confidence,
+                "risk_level": risk_level,
+                "action_type": proposal["action_type"],
+                "tool": proposal["tool"],
+                "target_paths": proposal["target_paths"],
+                "validation_plan": args.validation_plan or proposal["validation_plan"],
+                "gate": gate,
+            }
+        else:
+            data = action_gate_inputs_from_args(args, conn)
+
+        if args.record or args.proposal_id:
+            if args.proposal_id:
+                conn.execute(
+                    """
+                    UPDATE action_proposals
+                    SET status = ?, gate_decision = ?, gate_reason = ?,
+                        requires_approval = ?, updated_at = datetime('now')
+                    WHERE project = ? AND id = ?
+                    """,
+                    (
+                        data["gate"]["decision"],
+                        data["gate"]["decision"],
+                        data["gate"]["reason"],
+                        int(data["gate"]["requires_approval"]),
+                        args.project,
+                        args.proposal_id,
+                    ),
+                )
+            event_id = record_event(
+                conn,
+                project=args.project,
+                run_id=args.run_id,
+                goal_id=args.goal_id,
+                event_type="ActionBlocked" if data["gate"]["decision"] == "blocked" else "ActionProposed",
+                source="runtime-execution-gate",
+                summary=f"Execution gate returned {data['gate']['decision']} for {data['action_type']} via {data['tool']}.",
+                payload=data,
+                severity="warning" if data["gate"]["decision"] != "allowed" else "info",
+            )
+            conn.commit()
+        else:
+            event_id = None
+    print_json({"ok": data["gate"]["decision"] == "allowed", "event_id": event_id, **data})
+
+
+def cmd_runtime_approve_action(args: argparse.Namespace) -> None:
+    with connect(args.db) as conn:
+        ensure_initialized(conn, args.schema)
+        if args.proposal_id:
+            proposal_row_or_die(conn, project=args.project, proposal_id=args.proposal_id)
+        cur = conn.execute(
+            """
+            INSERT INTO approval_records(
+                project, intent_id, proposal_id, approved_by_user_text, approved_scope, expires_when
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (args.project, args.intent_id, args.proposal_id, args.approved_text, args.approved_scope, args.expires_when),
+        )
+        if args.intent_id:
+            conn.execute(
+                """
+                UPDATE intent_states
+                SET mutation_authorization = 'fix-authorized',
+                    current_phase = 'approved',
+                    approved_scope = COALESCE(?, approved_scope),
+                    updated_at = datetime('now')
+                WHERE project = ? AND id = ?
+                """,
+                (args.approved_scope, args.project, args.intent_id),
+            )
+        if args.proposal_id:
+            conn.execute(
+                """
+                UPDATE action_proposals
+                SET status = 'approved',
+                    requires_approval = 0,
+                    updated_at = datetime('now')
+                WHERE project = ? AND id = ?
+                """,
+                (args.project, args.proposal_id),
+            )
+        event_id = record_event(
+            conn,
+            project=args.project,
+            run_id=args.run_id,
+            goal_id=args.goal_id,
+            event_type="ActionApproved",
+            source="runtime-approve-action",
+            summary="User approval recorded for action execution.",
+            payload={
+                "approval_id": cur.lastrowid,
+                "intent_id": args.intent_id,
+                "proposal_id": args.proposal_id,
+                "approved_scope": args.approved_scope,
+                "approved_text": args.approved_text,
+            },
+        )
+        conn.commit()
+    print_json({"ok": True, "id": cur.lastrowid, "event_id": event_id, "project": args.project})
+
+
+def cmd_runtime_record_feedback(args: argparse.Namespace) -> None:
+    with connect(args.db) as conn:
+        ensure_initialized(conn, args.schema)
+        cur = conn.execute(
+            """
+            INSERT INTO feedback_events(
+                project, intent_id, proposal_id, observation_id, confidence_delta,
+                risk_delta, scope_delta, evidence_delta, summary
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                args.project,
+                args.intent_id,
+                args.proposal_id,
+                args.observation_id,
+                args.confidence_delta,
+                args.risk_delta,
+                args.scope_delta,
+                args.evidence_delta,
+                args.summary,
+            ),
+        )
+        if args.intent_id:
+            conn.execute(
+                """
+                UPDATE intent_states
+                SET confidence = MIN(1, MAX(0, confidence + ?)),
+                    current_phase = CASE
+                        WHEN ? IN ('contradicts', 'new-evidence') THEN 'planning'
+                        ELSE current_phase
+                    END,
+                    updated_at = datetime('now')
+                WHERE project = ? AND id = ?
+                """,
+                (args.confidence_delta, args.evidence_delta, args.project, args.intent_id),
+            )
+        event_id = record_event(
+            conn,
+            project=args.project,
+            run_id=args.run_id,
+            goal_id=args.goal_id,
+            event_type="FeedbackRecorded",
+            source="runtime-record-feedback",
+            summary=args.summary,
+            payload={
+                "feedback_id": cur.lastrowid,
+                "intent_id": args.intent_id,
+                "proposal_id": args.proposal_id,
+                "confidence_delta": args.confidence_delta,
+                "risk_delta": args.risk_delta,
+                "scope_delta": args.scope_delta,
+                "evidence_delta": args.evidence_delta,
+            },
+        )
+        conn.commit()
+    print_json({"ok": True, "id": cur.lastrowid, "event_id": event_id, "project": args.project})
+
+
+def detect_drift_from_state(
+    *,
+    intent: Optional[sqlite3.Row],
+    proposal: Optional[sqlite3.Row],
+    actual_action: Optional[str],
+    actual_tool: Optional[str],
+    actual_scope: Optional[str],
+    confidence: Optional[float],
+) -> List[Dict[str, Any]]:
+    drifts: List[Dict[str, Any]] = []
+    if intent is not None:
+        mutation_authorization = intent["mutation_authorization"]
+        expected_scope = intent["approved_scope"]
+        expected_actions = {part.strip() for part in (intent["allowed_actions"] or "").split(",") if part.strip()}
+        action = actual_action or (proposal["action_type"] if proposal else None)
+        tool = actual_tool or (proposal["tool"] if proposal else None)
+        tool_actions = set(TOOL_REGISTRY.get(tool or "", {"actions": set()})["actions"])
+        action_set = {item for item in {action, *tool_actions} if item}
+        if mutation_authorization == "read-only" and action_set.intersection(READ_ONLY_BLOCKED_ACTIONS):
+            drifts.append(
+                {
+                    "drift_type": "mutation",
+                    "severity": "error",
+                    "expected": "read-only intent must not mutate files, docs, memory, git, deploy, or runtime state",
+                    "actual": f"action={action}; tool={tool}; actions={','.join(sorted(action_set))}",
+                }
+            )
+        if expected_actions and action and action not in expected_actions and action_set.isdisjoint(expected_actions):
+            drifts.append(
+                {
+                    "drift_type": "tool",
+                    "severity": "warning",
+                    "expected": f"allowed actions: {','.join(sorted(expected_actions))}",
+                    "actual": f"action={action}; tool={tool}",
+                }
+            )
+        scope_ok, scope_reason = scope_matches(actual_scope or (proposal["target_paths"] if proposal else None), expected_scope)
+        if not scope_ok:
+            drifts.append(
+                {
+                    "drift_type": "scope",
+                    "severity": "warning",
+                    "expected": expected_scope or "approved scope",
+                    "actual": scope_reason,
+                }
+            )
+        if confidence is not None and confidence < 0.7 and action_set.intersection(READ_ONLY_BLOCKED_ACTIONS):
+            drifts.append(
+                {
+                    "drift_type": "confidence",
+                    "severity": "warning",
+                    "expected": "confidence >= 0.7 before mutating actions",
+                    "actual": f"confidence={confidence}",
+                }
+            )
+    return drifts
+
+
+def cmd_runtime_detect_drift(args: argparse.Namespace) -> None:
+    with connect(args.db) as conn:
+        ensure_initialized(conn, args.schema)
+        intent = fetch_intent_state(conn, project=args.project, intent_id=args.intent_id)
+        proposal = proposal_row_or_die(conn, project=args.project, proposal_id=args.proposal_id) if args.proposal_id else None
+        drifts = detect_drift_from_state(
+            intent=intent,
+            proposal=proposal,
+            actual_action=args.actual_action,
+            actual_tool=args.actual_tool,
+            actual_scope=args.actual_scope,
+            confidence=args.confidence,
+        )
+        drift_ids: List[int] = []
+        if args.record:
+            for drift in drifts:
+                cur = conn.execute(
+                    """
+                    INSERT INTO drift_events(
+                        project, intent_id, proposal_id, feedback_id, drift_type,
+                        severity, expected, actual, resolution, status
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')
+                    """,
+                    (
+                        args.project,
+                        args.intent_id,
+                        args.proposal_id,
+                        args.feedback_id,
+                        drift["drift_type"],
+                        drift["severity"],
+                        drift["expected"],
+                        drift["actual"],
+                        args.resolution,
+                    ),
+                )
+                drift_ids.append(cur.lastrowid)
+                record_event(
+                    conn,
+                    project=args.project,
+                    run_id=args.run_id,
+                    goal_id=args.goal_id,
+                    event_type="DriftDetected",
+                    source="runtime-detect-drift",
+                    summary=f"{drift['drift_type']} drift detected.",
+                    payload={**drift, "drift_id": cur.lastrowid},
+                    severity=drift["severity"],
+                )
+            conn.commit()
+    print_json({"ok": not drifts, "project": args.project, "drifts": drifts, "drift_ids": drift_ids})
+
+
+def cmd_runtime_reanchor(args: argparse.Namespace) -> None:
+    with connect(args.db) as conn:
+        ensure_initialized(conn, args.schema)
+        intent = fetch_intent_state(conn, project=args.project, intent_id=args.intent_id)
+        if intent is None:
+            raise SystemExit(f"Intent not found for project={args.project}: {args.intent_id}")
+        open_drifts = conn.execute(
+            """
+            SELECT *
+            FROM drift_events
+            WHERE project = ? AND intent_id = ? AND status = 'open'
+            ORDER BY created_at DESC
+            LIMIT 10
+            """,
+            (args.project, args.intent_id),
+        ).fetchall()
+        prompt = args.prompt or (
+            f"Current intent is {intent['intent_type']} with {intent['mutation_authorization']} authorization. "
+            "Execution drift was detected. Re-anchor with the user before continuing: confirm whether to stay read-only, revise the plan, or authorize a fix."
+        )
+        conn.execute(
+            """
+            UPDATE intent_states
+            SET current_phase = 'awaiting-approval', updated_at = datetime('now')
+            WHERE project = ? AND id = ?
+            """,
+            (args.project, args.intent_id),
+        )
+        event_id = record_event(
+            conn,
+            project=args.project,
+            run_id=args.run_id,
+            goal_id=args.goal_id,
+            event_type="ReanchorRequested",
+            source="runtime-reanchor",
+            summary=prompt,
+            payload={"intent_id": args.intent_id, "open_drifts": [row_to_dict(row) for row in open_drifts]},
+            severity="warning" if open_drifts else "info",
+        )
+        conn.commit()
+    print_json(
+        {
+            "ok": True,
+            "event_id": event_id,
+            "project": args.project,
+            "intent_id": args.intent_id,
+            "prompt": prompt,
+            "open_drifts": [row_to_dict(row) for row in open_drifts],
+        }
+    )
+
+
+def cmd_runtime_revise_plan(args: argparse.Namespace) -> None:
+    with connect(args.db) as conn:
+        ensure_initialized(conn, args.schema)
+        if args.intent_id and fetch_intent_state(conn, project=args.project, intent_id=args.intent_id) is None:
+            raise SystemExit(f"Intent not found for project={args.project}: {args.intent_id}")
+        if args.version is None:
+            row = conn.execute(
+                "SELECT COALESCE(MAX(version), 0) + 1 AS version FROM plan_versions WHERE project = ? AND intent_id IS ?",
+                (args.project, args.intent_id),
+            ).fetchone()
+            version = int(row["version"])
+        else:
+            version = args.version
+        if args.status == "active" and args.intent_id:
+            conn.execute(
+                """
+                UPDATE plan_versions
+                SET status = 'superseded'
+                WHERE project = ? AND intent_id = ? AND status = 'active'
+                """,
+                (args.project, args.intent_id),
+            )
+        cur = conn.execute(
+            """
+            INSERT INTO plan_versions(
+                project, intent_id, version, assumptions, steps, validation, rollback, status
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(intent_id, version) DO UPDATE SET
+                assumptions = excluded.assumptions,
+                steps = excluded.steps,
+                validation = excluded.validation,
+                rollback = excluded.rollback,
+                status = excluded.status
+            """,
+            (
+                args.project,
+                args.intent_id,
+                version,
+                args.assumptions,
+                args.steps,
+                args.validation,
+                args.rollback,
+                args.status,
+            ),
+        )
+        if args.intent_id:
+            conn.execute(
+                """
+                UPDATE intent_states
+                SET current_phase = 'planning', updated_at = datetime('now')
+                WHERE project = ? AND id = ?
+                """,
+                (args.project, args.intent_id),
+            )
+        event_id = record_event(
+            conn,
+            project=args.project,
+            run_id=args.run_id,
+            goal_id=args.goal_id,
+            event_type="PlanRevised",
+            source="runtime-revise-plan",
+            summary=f"Plan version {version} recorded as {args.status}.",
+            payload={
+                "intent_id": args.intent_id,
+                "version": version,
+                "assumptions": args.assumptions,
+                "steps": args.steps,
+                "validation": args.validation,
+                "rollback": args.rollback,
+                "status": args.status,
+            },
+        )
+        conn.commit()
+    print_json({"ok": True, "id": cur.lastrowid, "event_id": event_id, "project": args.project, "version": version})
 
 
 def cmd_kernel_step(args: argparse.Namespace) -> None:
@@ -4048,6 +6064,163 @@ def cmd_runtime_detect_host_adapter(args: argparse.Namespace) -> None:
     )
 
 
+def agent_entrypoint_for_host(host_type: str) -> str:
+    mapping = {
+        "codex": "AGENTS.md",
+        "claude": "CLAUDE.md",
+        "qwen": "QWEN.md",
+        "cursor": ".cursor/rules/agent-os.md",
+        "vscode": "AGENTS.md",
+        "cli": "AGENTS.md",
+        "mcp": "AGENTS.md",
+        "custom": "AGENTS.md",
+    }
+    return mapping.get(host_type, "AGENTS.md")
+
+
+def cmd_runtime_compatibility_matrix(args: argparse.Namespace) -> None:
+    providers = args.provider or list(MODEL_PROVIDERS)
+    hosts = args.host_type or list(HOST_TYPES)
+    provider_rows = []
+    for provider in providers:
+        diagnostics = model_provider_config(provider)
+        provider_rows.append(
+            {
+                "provider": provider,
+                "status": diagnostics["status"],
+                "missing_env": diagnostics.get("missing_env", []),
+                "required_env": diagnostics.get("required_env", []),
+                "adapter": model_adapter_name(provider),
+            }
+        )
+    with connect(args.db) as conn:
+        ensure_initialized(conn, args.schema)
+        host_rows = []
+        for host in hosts:
+            adapters = conn.execute(
+                """
+                SELECT *
+                FROM host_adapters
+                WHERE project = ? AND host_type = ?
+                ORDER BY updated_at DESC
+                """,
+                (args.project, host),
+            ).fetchall()
+            declared = []
+            available = []
+            for row in adapters:
+                capabilities = json.loads(row["capabilities_json"] or "[]")
+                declared.extend(capabilities)
+                if row["status"] == "available":
+                    available.append(row["adapter_name"])
+            protocol = sorted(HOST_CAPABILITY_PROTOCOL.get(host, set()))
+            supported = sorted(set(declared).intersection(protocol))
+            missing = sorted(set(args.require_capability or protocol) - set(declared)) if args.require_capability else []
+            host_rows.append(
+                {
+                    "host_type": host,
+                    "entrypoint": agent_entrypoint_for_host(host),
+                    "protocol_capabilities": protocol,
+                    "declared_capabilities": sorted(set(declared)),
+                    "supported_capabilities": supported,
+                    "missing_capabilities": missing,
+                    "available_adapters": available,
+                    "status": "compatible" if available and not missing else "needs-adapter" if not available else "missing-capability",
+                }
+            )
+    ok = all(row["status"] in {"configured", "optional", "custom-adapter-required"} for row in provider_rows) and all(
+        row["status"] == "compatible" for row in host_rows
+    )
+    report = {"ok": ok, "project": args.project, "providers": provider_rows, "hosts": host_rows}
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+    print_json(report)
+
+
+def cmd_runtime_governance_proposal(args: argparse.Namespace) -> None:
+    source_type = args.source_type or "rule"
+    status = "reviewing" if args.ready_for_review else "candidate"
+    review_result = "requires-human-review"
+    if not args.validation:
+        review_result = "missing-validation"
+    elif not args.scope or not args.boundary:
+        review_result = "missing-scope-boundary"
+    with connect(args.db) as conn:
+        ensure_initialized(conn, args.schema)
+        conn.execute(
+            """
+            INSERT INTO improvement_reviews(
+                project, goal_id, run_id, candidate_name, source_type, trigger, evidence,
+                scope, boundary, status, review_result
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(project, candidate_name, source_type) DO UPDATE SET
+                goal_id = excluded.goal_id,
+                run_id = excluded.run_id,
+                trigger = excluded.trigger,
+                evidence = excluded.evidence,
+                scope = excluded.scope,
+                boundary = excluded.boundary,
+                status = excluded.status,
+                review_result = excluded.review_result,
+                updated_at = datetime('now')
+            """,
+            (
+                args.project,
+                args.goal_id,
+                args.run_id,
+                args.name,
+                source_type,
+                args.trigger,
+                args.evidence,
+                args.scope,
+                args.boundary,
+                status,
+                review_result,
+            ),
+        )
+        row = conn.execute(
+            """
+            SELECT id, status, review_result
+            FROM improvement_reviews
+            WHERE project = ? AND candidate_name = ? AND source_type = ?
+            """,
+            (args.project, args.name, source_type),
+        ).fetchone()
+        record_event(
+            conn,
+            project=args.project,
+            goal_id=args.goal_id,
+            run_id=args.run_id,
+            event_type="KernelStep",
+            source="runtime-governance-proposal",
+            summary=f"Governance proposal recorded for {args.name}.",
+            payload={
+                "proposal_id": row["id"],
+                "candidate_name": args.name,
+                "source_type": source_type,
+                "status": row["status"],
+                "review_result": row["review_result"],
+                "auto_promote": False,
+            },
+            severity="info" if review_result == "requires-human-review" else "warning",
+        )
+        conn.commit()
+    print_json(
+        {
+            "ok": review_result == "requires-human-review",
+            "id": row["id"],
+            "project": args.project,
+            "name": args.name,
+            "source_type": source_type,
+            "status": row["status"],
+            "review_result": row["review_result"],
+            "auto_promote": False,
+        }
+    )
+
+
 def count_retries(rows: list[sqlite3.Row], key_fields: Tuple[str, ...], status_field: str) -> int:
     attempts: dict[tuple[Any, ...], int] = {}
     retries = 0
@@ -4180,6 +6353,54 @@ def scoped_rows(conn, table: str, project: str, goal_id: Optional[str], run_id: 
     return [row_to_dict(row) for row in rows]
 
 
+def scoped_intent_ids(conn, project: str, goal_id: Optional[str], run_id: Optional[str]) -> list[str]:
+    where = ["project = ?"]
+    params: list[Any] = [project]
+    if goal_id:
+        where.append("(goal_id = ? OR goal_id IS NULL)")
+        params.append(goal_id)
+    if run_id:
+        where.append("(run_id = ? OR run_id IS NULL)")
+        params.append(run_id)
+    rows = conn.execute(
+        f"SELECT id FROM intent_states WHERE {' AND '.join(where)} ORDER BY updated_at",
+        params,
+    ).fetchall()
+    return [row["id"] for row in rows]
+
+
+def scoped_intent_rows(
+    conn,
+    table: str,
+    project: str,
+    goal_id: Optional[str],
+    run_id: Optional[str],
+    order_column: str = "created_at",
+) -> list[Dict[str, Any]]:
+    intent_ids = scoped_intent_ids(conn, project, goal_id, run_id)
+    columns = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    where = ["project = ?"]
+    params: list[Any] = [project]
+    if "goal_id" in columns and goal_id:
+        where.append("(goal_id = ? OR goal_id IS NULL)")
+        params.append(goal_id)
+    if "run_id" in columns and run_id:
+        where.append("(run_id = ? OR run_id IS NULL)")
+        params.append(run_id)
+    if "intent_id" in columns and (goal_id or run_id):
+        if intent_ids:
+            placeholders = ",".join("?" for _ in intent_ids)
+            where.append(f"(intent_id IN ({placeholders}) OR intent_id IS NULL)")
+            params.extend(intent_ids)
+        else:
+            where.append("intent_id IS NULL")
+    rows = conn.execute(
+        f"SELECT * FROM {table} WHERE {' AND '.join(where)} ORDER BY {order_column}",
+        params,
+    ).fetchall()
+    return [row_to_dict(row) for row in rows]
+
+
 def stable_json_hash(value: Any) -> str:
     payload = json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
@@ -4198,6 +6419,11 @@ def trace_timeline(trace: Dict[str, Any]) -> list[Dict[str, Any]]:
         ("run", [trace["run"]] if trace.get("run") else []),
         ("context", [trace["context"]] if trace.get("context") else []),
         ("task", trace.get("tasks", [])),
+        ("intent", trace.get("intents", [])),
+        ("action", trace.get("action_proposals", [])),
+        ("feedback", trace.get("feedback", [])),
+        ("drift", trace.get("drifts", [])),
+        ("plan", trace.get("plan_versions", [])),
         ("policy", trace.get("policies", [])),
         ("skill", trace.get("skill_recommendations", [])),
         ("tool", trace.get("tool_runs", [])),
@@ -4205,6 +6431,12 @@ def trace_timeline(trace: Dict[str, Any]) -> list[Dict[str, Any]]:
         ("subagent", trace.get("subagent_runs", [])),
         ("verification", trace.get("verifications", [])),
         ("event", trace.get("events", [])),
+        ("event-message", trace.get("event_messages", [])),
+        ("schedule", trace.get("schedule_items", [])),
+        ("resource", trace.get("resource_leases", [])),
+        ("quality", trace.get("quality_scores", [])),
+        ("self-audit", trace.get("self_audit_findings", [])),
+        ("benchmark", trace.get("benchmarks", [])),
         ("recovery", trace.get("recoveries", [])),
     ]
     timeline: list[Dict[str, Any]] = []
@@ -4255,6 +6487,11 @@ def build_runtime_trace(conn, project: str, goal_id: Optional[str] = None, run_i
         "run": row_to_dict(run) if run else None,
         "context": row_to_dict(context) if context else None,
         "tasks": scoped_rows(conn, "agent_tasks", project, goal_id, run_id, "order_index"),
+        "intents": scoped_rows(conn, "intent_states", project, goal_id, run_id, "updated_at"),
+        "action_proposals": scoped_rows(conn, "action_proposals", project, goal_id, run_id, "updated_at"),
+        "feedback": scoped_intent_rows(conn, "feedback_events", project, goal_id, run_id),
+        "drifts": scoped_intent_rows(conn, "drift_events", project, goal_id, run_id),
+        "plan_versions": scoped_intent_rows(conn, "plan_versions", project, goal_id, run_id),
         "policies": scoped_rows(conn, "policy_decisions", project, goal_id, run_id),
         "skill_recommendations": scoped_rows(conn, "skill_recommendations", project, goal_id, run_id),
         "skill_manifests": scoped_rows(conn, "skill_manifests", project, goal_id, run_id, "validated_at"),
@@ -4266,12 +6503,18 @@ def build_runtime_trace(conn, project: str, goal_id: Optional[str] = None, run_i
         "recoveries": scoped_rows(conn, "recovery_points", project, goal_id, run_id),
         "metrics": metrics,
         "events": scoped_rows(conn, "agent_events", project, goal_id, run_id),
+        "event_messages": scoped_rows(conn, "event_bus_messages", project, goal_id, run_id, "created_at"),
+        "schedule_items": scoped_rows(conn, "runtime_schedule_items", project, goal_id, run_id, "created_at"),
+        "resource_leases": scoped_rows(conn, "resource_leases", project, goal_id, run_id, "created_at"),
+        "quality_scores": scoped_rows(conn, "quality_scores", project, goal_id, run_id, "created_at"),
+        "self_audit_findings": scoped_rows(conn, "self_audit_findings", project, goal_id, run_id, "created_at"),
+        "benchmarks": scoped_rows(conn, "benchmark_runs", project, goal_id, run_id, "created_at"),
     }
     timeline = trace_timeline(trace)
     trace["timeline"] = timeline
     trace["duration_ms"] = sum(item["duration_ms"] or 0 for item in timeline)
     trace["input_hash"] = stable_json_hash({"project": project, "goal_id": goal_id, "run_id": run_id, "request": trace.get("run", {}).get("request") if trace.get("run") else None})
-    trace["output_hash"] = stable_json_hash({key: trace[key] for key in ("tasks", "policies", "skill_recommendations", "tool_runs", "model_runs", "subagent_runs", "verifications", "events")})
+    trace["output_hash"] = stable_json_hash({key: trace[key] for key in ("tasks", "intents", "action_proposals", "feedback", "drifts", "plan_versions", "policies", "skill_recommendations", "tool_runs", "model_runs", "subagent_runs", "verifications", "events", "event_messages", "schedule_items", "resource_leases", "quality_scores", "self_audit_findings", "benchmarks")})
     trace["event_count"] = len(trace["events"])
     return trace
 
@@ -4371,6 +6614,12 @@ def check_runtime(root: Path, conn) -> tuple[str, List[str]]:
         "host_adapters",
         "runtime_metrics",
         "runtime_traces",
+        "event_bus_messages",
+        "runtime_schedule_items",
+        "resource_leases",
+        "quality_scores",
+        "self_audit_findings",
+        "benchmark_runs",
     ]
     rows = conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()
     existing = {row["name"] for row in rows}
@@ -4620,6 +6869,129 @@ def build_dashboard_data(conn, project: str, limit: int = 20) -> Dict[str, Any]:
             "SELECT id, run_id, goal_id, event_type, source, summary, severity, created_at FROM agent_events WHERE project = ? ORDER BY created_at DESC LIMIT ?",
             (project, limit),
         ),
+        "intents": dashboard_rows(
+            conn,
+            """
+            SELECT id, intent_type, mutation_authorization, current_phase, confidence,
+                   risk_level, updated_at
+            FROM intent_states
+            WHERE project = ?
+            ORDER BY updated_at DESC
+            LIMIT ?
+            """,
+            (project, limit),
+        ),
+        "actions": dashboard_rows(
+            conn,
+            """
+            SELECT id, intent_id, action_type, tool, status, gate_decision,
+                   requires_approval, updated_at
+            FROM action_proposals
+            WHERE project = ?
+            ORDER BY updated_at DESC
+            LIMIT ?
+            """,
+            (project, limit),
+        ),
+        "drifts": dashboard_rows(
+            conn,
+            """
+            SELECT id, intent_id, proposal_id, drift_type, severity, status, created_at
+            FROM drift_events
+            WHERE project = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (project, limit),
+        ),
+        "feedback": dashboard_rows(
+            conn,
+            """
+            SELECT id, intent_id, proposal_id, confidence_delta, evidence_delta, summary, created_at
+            FROM feedback_events
+            WHERE project = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (project, limit),
+        ),
+        "plans": dashboard_rows(
+            conn,
+            """
+            SELECT id, intent_id, version, status, validation, created_at
+            FROM plan_versions
+            WHERE project = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (project, limit),
+        ),
+        "event_messages": dashboard_rows(
+            conn,
+            """
+            SELECT id, topic, subscriber, status, priority, available_at, delivered_at, acknowledged_at
+            FROM event_bus_messages
+            WHERE project = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (project, limit),
+        ),
+        "schedule": dashboard_rows(
+            conn,
+            """
+            SELECT id, goal_id, task_id, action_type, assigned_role, status, priority, next_action, updated_at
+            FROM runtime_schedule_items
+            WHERE project = ?
+            ORDER BY updated_at DESC
+            LIMIT ?
+            """,
+            (project, limit),
+        ),
+        "resources": dashboard_rows(
+            conn,
+            """
+            SELECT id, schedule_id, resource_type, resource_key, quantity, status, expires_at, updated_at
+            FROM resource_leases
+            WHERE project = ?
+            ORDER BY updated_at DESC
+            LIMIT ?
+            """,
+            (project, limit),
+        ),
+        "quality": dashboard_rows(
+            conn,
+            """
+            SELECT id, goal_id, run_id, score, grade, risk_penalty, created_at
+            FROM quality_scores
+            WHERE project = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (project, limit),
+        ),
+        "self_audit": dashboard_rows(
+            conn,
+            """
+            SELECT id, goal_id, run_id, finding_type, severity, status, summary, updated_at
+            FROM self_audit_findings
+            WHERE project = ?
+            ORDER BY updated_at DESC
+            LIMIT ?
+            """,
+            (project, limit),
+        ),
+        "benchmarks": dashboard_rows(
+            conn,
+            """
+            SELECT id, goal_id, run_id, name, metric, current_value, threshold_value, direction, status, created_at
+            FROM benchmark_runs
+            WHERE project = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (project, limit),
+        ),
         "verification": dashboard_rows(
             conn,
             "SELECT id, goal_id, task_id, scope, command, result, failure_type, evidence, created_at FROM verification_runs WHERE project = ? ORDER BY created_at DESC LIMIT ?",
@@ -4646,6 +7018,17 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
         render_dashboard_table("运行", data["runs"]),
         render_dashboard_table("任务", data["tasks"]),
         render_dashboard_table("事件", data["events"]),
+        render_dashboard_table("意图", data["intents"]),
+        render_dashboard_table("动作", data["actions"]),
+        render_dashboard_table("漂移", data["drifts"]),
+        render_dashboard_table("反馈", data["feedback"]),
+        render_dashboard_table("计划版本", data["plans"]),
+        render_dashboard_table("事件消息", data["event_messages"]),
+        render_dashboard_table("调度", data["schedule"]),
+        render_dashboard_table("资源租约", data["resources"]),
+        render_dashboard_table("质量评分", data["quality"]),
+        render_dashboard_table("自审计", data["self_audit"]),
+        render_dashboard_table("基准测试", data["benchmarks"]),
         render_dashboard_table("验证", data["verification"]),
     ]
     summary_cards = "".join(
@@ -4655,6 +7038,17 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
             ("runs", "运行"),
             ("tasks", "任务"),
             ("events", "事件"),
+            ("intents", "意图"),
+            ("actions", "动作"),
+            ("drifts", "漂移"),
+            ("feedback", "反馈"),
+            ("plans", "计划"),
+            ("event_messages", "消息"),
+            ("schedule", "调度"),
+            ("resources", "资源"),
+            ("quality", "质量"),
+            ("self_audit", "自审"),
+            ("benchmarks", "基准"),
             ("verification", "验证"),
         )
     )
@@ -4715,7 +7109,7 @@ def cmd_runtime_dashboard(args: argparse.Namespace) -> None:
             "project": args.project,
             "output": str(output),
             "data_output": str(data_output) if data_output else None,
-            "sections": ["goals", "runs", "tasks", "events", "verification"],
+            "sections": ["goals", "runs", "tasks", "events", "intents", "actions", "drifts", "feedback", "plans", "event_messages", "schedule", "resources", "quality", "self_audit", "benchmarks", "verification"],
             "data_source": data_source if args.inline_data else {"kind": data_source["kind"], "section_counts": data_source["sections"]},
         }
     )
@@ -4782,6 +7176,17 @@ def dashboard_data_source(data: Dict[str, Any]) -> Dict[str, Any]:
             "runs": len(data["runs"]),
             "tasks": len(data["tasks"]),
             "events": len(data["events"]),
+            "intents": len(data["intents"]),
+            "actions": len(data["actions"]),
+            "drifts": len(data["drifts"]),
+            "feedback": len(data["feedback"]),
+            "plans": len(data["plans"]),
+            "event_messages": len(data["event_messages"]),
+            "schedule": len(data["schedule"]),
+            "resources": len(data["resources"]),
+            "quality": len(data["quality"]),
+            "self_audit": len(data["self_audit"]),
+            "benchmarks": len(data["benchmarks"]),
             "verification": len(data["verification"]),
         },
         "records": data,
@@ -4831,6 +7236,425 @@ def cmd_runtime_quality_trends(args: argparse.Namespace) -> None:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
     print_json(report)
+
+
+def grade_for_score(score: float) -> str:
+    if score >= 90:
+        return "A"
+    if score >= 80:
+        return "B"
+    if score >= 70:
+        return "C"
+    if score >= 60:
+        return "D"
+    return "F"
+
+
+def compute_quality_score(conn, project: str, goal_id: Optional[str], run_id: Optional[str]) -> Dict[str, Any]:
+    goal_clause = " AND goal_id = ?" if goal_id else ""
+    run_clause = " AND run_id = ?" if run_id else ""
+    goal_params: list[Any] = [project] + ([goal_id] if goal_id else [])
+    scoped_params: list[Any] = [project] + ([goal_id] if goal_id else []) + ([run_id] if run_id else [])
+
+    verifications = conn.execute(
+        f"SELECT result FROM verification_runs WHERE project = ?{goal_clause}",
+        goal_params,
+    ).fetchall()
+    verification_total = len(verifications)
+    verification_passed = sum(1 for row in verifications if row["result"] == "passed")
+    verification_failed = sum(1 for row in verifications if row["result"] in {"failed", "blocked"})
+    verification_score = 100 if verification_total and verification_failed == 0 else (verification_passed / verification_total * 100 if verification_total else 0)
+
+    action_rows = conn.execute(
+        f"SELECT status FROM action_proposals WHERE project = ?{goal_clause}",
+        goal_params,
+    ).fetchall()
+    blocked_actions = sum(1 for row in action_rows if row["status"] in {"blocked", "requires-approval"})
+    open_drifts = conn.execute(
+        "SELECT COUNT(*) AS count FROM drift_events WHERE project = ? AND status = 'open'",
+        (project,),
+    ).fetchone()["count"]
+    intent_score = max(0, 100 - blocked_actions * 25 - open_drifts * 20)
+
+    schedule_rows = conn.execute(
+        f"SELECT status FROM runtime_schedule_items WHERE project = ?{goal_clause}",
+        goal_params,
+    ).fetchall()
+    open_schedule = sum(1 for row in schedule_rows if row["status"] in {"queued", "ready", "running", "blocked"})
+    lease_rows = conn.execute(
+        f"SELECT status FROM resource_leases WHERE project = ?{goal_clause}",
+        goal_params,
+    ).fetchall()
+    open_leases = sum(1 for row in lease_rows if row["status"] in {"requested", "granted", "denied"})
+    schedule_score = max(0, 100 - open_schedule * 20 - open_leases * 20)
+
+    workspace = workspace_snapshot(project)
+    docs_freshness = docs_freshness_for_request(project, [], workspace)
+    docs_score = 100
+    if docs_freshness["missing_docs"]:
+        docs_score -= 40
+    if docs_freshness["stale_docs"]:
+        docs_score -= 30
+    if docs_freshness["must_update"]:
+        docs_score -= 20
+    docs_score = max(0, docs_score)
+
+    recovery_required = bool(conn.execute(
+        f"SELECT 1 FROM policy_decisions WHERE project = ?{goal_clause} AND decision_type = 'rollback' AND decision = 'required' LIMIT 1",
+        goal_params,
+    ).fetchone())
+    recovery_ready = bool(conn.execute(
+        f"SELECT 1 FROM recovery_points WHERE project = ?{goal_clause} AND (status IN ('available', 'used') OR checkpoint_ref IS NOT NULL) LIMIT 1",
+        goal_params,
+    ).fetchone())
+    recovery_score = 100 if not recovery_required or recovery_ready else 40
+
+    memory_count = conn.execute(
+        "SELECT COUNT(*) AS count FROM memory_items WHERE project = ? OR project = '*'",
+        (normalize_project_slug(project),),
+    ).fetchone()["count"]
+    memory_score = 100 if memory_count else 70
+
+    failed_events = conn.execute(
+        f"SELECT COUNT(*) AS count FROM event_bus_messages WHERE project = ?{goal_clause} AND status = 'failed'",
+        goal_params,
+    ).fetchone()["count"]
+    failed_benchmarks = conn.execute(
+        f"SELECT COUNT(*) AS count FROM benchmark_runs WHERE project = ?{goal_clause} AND status IN ('failed', 'blocked', 'not-run')",
+        goal_params,
+    ).fetchone()["count"]
+    open_audit = conn.execute(
+        f"SELECT COUNT(*) AS count FROM self_audit_findings WHERE project = ?{goal_clause}{run_clause} AND status = 'open'",
+        scoped_params,
+    ).fetchone()["count"]
+    risk_penalty = min(40, failed_events * 10 + open_audit * 10 + failed_benchmarks * 10)
+
+    weighted = (
+        verification_score * 0.25
+        + intent_score * 0.2
+        + schedule_score * 0.15
+        + docs_score * 0.15
+        + recovery_score * 0.15
+        + memory_score * 0.1
+        - risk_penalty
+    )
+    score = round(max(0, min(100, weighted)), 2)
+    metrics = {
+        "verification_total": verification_total,
+        "verification_failed": verification_failed,
+        "blocked_actions": blocked_actions,
+        "open_drifts": open_drifts,
+        "open_schedule_items": open_schedule,
+        "open_resource_leases": open_leases,
+        "failed_event_messages": failed_events,
+        "failed_benchmarks": failed_benchmarks,
+        "open_self_audit_findings": open_audit,
+        "docs_freshness": docs_freshness,
+        "recovery_required": recovery_required,
+        "recovery_ready": recovery_ready,
+        "memory_count": memory_count,
+    }
+    evidence = (
+        f"verification={verification_score:.1f}; intent={intent_score:.1f}; "
+        f"schedule={schedule_score:.1f}; docs={docs_score:.1f}; "
+        f"recovery={recovery_score:.1f}; memory={memory_score:.1f}; penalty={risk_penalty:.1f}"
+    )
+    return {
+        "score": score,
+        "grade": grade_for_score(score),
+        "verification_score": round(verification_score, 2),
+        "intent_score": round(intent_score, 2),
+        "schedule_score": round(schedule_score, 2),
+        "docs_score": round(docs_score, 2),
+        "recovery_score": round(recovery_score, 2),
+        "memory_score": round(memory_score, 2),
+        "risk_penalty": round(risk_penalty, 2),
+        "evidence": evidence,
+        "metrics": metrics,
+    }
+
+
+def cmd_runtime_quality_score(args: argparse.Namespace) -> None:
+    with connect(args.db) as conn:
+        ensure_initialized(conn, args.schema)
+        result = compute_quality_score(conn, args.project, args.goal_id, args.run_id)
+        score_id = None
+        if args.record:
+            cur = conn.execute(
+                """
+                INSERT INTO quality_scores(
+                    project, goal_id, run_id, score, grade, verification_score,
+                    intent_score, schedule_score, docs_score, recovery_score,
+                    memory_score, risk_penalty, evidence, metrics_json
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    args.project,
+                    args.goal_id,
+                    args.run_id,
+                    result["score"],
+                    result["grade"],
+                    result["verification_score"],
+                    result["intent_score"],
+                    result["schedule_score"],
+                    result["docs_score"],
+                    result["recovery_score"],
+                    result["memory_score"],
+                    result["risk_penalty"],
+                    result["evidence"],
+                    json.dumps(result["metrics"], ensure_ascii=False, sort_keys=True),
+                ),
+            )
+            score_id = cur.lastrowid
+            record_event(
+                conn,
+                project=args.project,
+                goal_id=args.goal_id,
+                run_id=args.run_id,
+                event_type="MetricsRecorded",
+                source="runtime-quality-score",
+                summary=f"Quality score {result['score']} ({result['grade']}).",
+                payload={**result, "score_id": score_id},
+                severity="info" if result["score"] >= args.min_score else "warning",
+            )
+            conn.commit()
+    print_json({"ok": result["score"] >= args.min_score, "id": score_id, "project": args.project, **result})
+
+
+def self_audit_findings_for(conn, project: str, goal_id: Optional[str], run_id: Optional[str]) -> list[Dict[str, Any]]:
+    findings: list[Dict[str, Any]] = []
+    goal_clause = " AND goal_id = ?" if goal_id else ""
+    params: list[Any] = [project] + ([goal_id] if goal_id else [])
+
+    checks = [
+        (
+            "blocked-action",
+            "error",
+            "Blocked or approval-pending action proposals remain open.",
+            "Resolve blocked proposals, obtain approval, or cancel the proposed mutation.",
+            conn.execute(
+                f"SELECT COUNT(*) AS count FROM action_proposals WHERE project = ?{goal_clause} AND status IN ('blocked', 'requires-approval')",
+                params,
+            ).fetchone()["count"],
+        ),
+        (
+            "open-drift",
+            "error",
+            "Open drift events remain in the intent loop.",
+            "Re-anchor with the user, revise the plan, or mark the drift resolved with evidence.",
+            conn.execute(
+                "SELECT COUNT(*) AS count FROM drift_events WHERE project = ? AND status = 'open'",
+                (project,),
+            ).fetchone()["count"],
+        ),
+        (
+            "open-scheduler-work",
+            "warning",
+            "Scheduler queue still has open work.",
+            "Complete, block with evidence, or cancel remaining schedule items.",
+            conn.execute(
+                f"SELECT COUNT(*) AS count FROM runtime_schedule_items WHERE project = ?{goal_clause} AND status IN ('queued', 'ready', 'running', 'blocked')",
+                params,
+            ).fetchone()["count"],
+        ),
+        (
+            "resource-leak",
+            "warning",
+            "Resource leases remain unresolved.",
+            "Release granted leases and resolve requested or denied leases.",
+            conn.execute(
+                f"SELECT COUNT(*) AS count FROM resource_leases WHERE project = ?{goal_clause} AND status IN ('requested', 'granted', 'denied')",
+                params,
+            ).fetchone()["count"],
+        ),
+        (
+            "event-bus-unacked",
+            "warning",
+            "Event bus messages remain pending, delivered, or failed.",
+            "Ack successful messages or record failure handling.",
+            conn.execute(
+                f"SELECT COUNT(*) AS count FROM event_bus_messages WHERE project = ?{goal_clause} AND status IN ('pending', 'delivered', 'failed')",
+                params,
+            ).fetchone()["count"],
+        ),
+        (
+            "verification-gap",
+            "error",
+            "No verification records exist for the scoped work.",
+            "Run or record the minimum verification path.",
+            0
+            if conn.execute(
+                f"SELECT 1 FROM verification_runs WHERE project = ?{goal_clause} LIMIT 1",
+                params,
+            ).fetchone()
+            else 1,
+        ),
+        (
+            "benchmark-regression",
+            "warning",
+            "Benchmark records include failed, blocked, or not-run results.",
+            "Re-run benchmark, adjust threshold with evidence, or document the substitute observation.",
+            conn.execute(
+                f"SELECT COUNT(*) AS count FROM benchmark_runs WHERE project = ?{goal_clause} AND status IN ('failed', 'blocked', 'not-run')",
+                params,
+            ).fetchone()["count"],
+        ),
+    ]
+    for finding_type, severity, summary, recommendation, count in checks:
+        if count:
+            findings.append(
+                {
+                    "finding_type": finding_type,
+                    "severity": severity,
+                    "summary": summary,
+                    "evidence": f"count={count}",
+                    "recommendation": recommendation,
+                }
+            )
+    return findings
+
+
+def cmd_runtime_self_audit(args: argparse.Namespace) -> None:
+    with connect(args.db) as conn:
+        ensure_initialized(conn, args.schema)
+        findings = self_audit_findings_for(conn, args.project, args.goal_id, args.run_id)
+        ids: list[int] = []
+        if args.record:
+            for finding in findings:
+                cur = conn.execute(
+                    """
+                    INSERT INTO self_audit_findings(
+                        project, goal_id, run_id, finding_type, severity, status,
+                        summary, evidence, recommendation
+                    )
+                    VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?)
+                    """,
+                    (
+                        args.project,
+                        args.goal_id,
+                        args.run_id,
+                        finding["finding_type"],
+                        finding["severity"],
+                        finding["summary"],
+                        finding["evidence"],
+                        finding["recommendation"],
+                    ),
+                )
+                ids.append(cur.lastrowid)
+            record_event(
+                conn,
+                project=args.project,
+                goal_id=args.goal_id,
+                run_id=args.run_id,
+                event_type="KernelStep",
+                source="runtime-self-audit",
+                summary=f"Self-audit found {len(findings)} issue(s).",
+                payload={"finding_ids": ids, "findings": findings},
+                severity="warning" if findings else "info",
+            )
+            conn.commit()
+    print_json({"ok": not findings, "project": args.project, "finding_ids": ids, "findings": findings})
+
+
+def benchmark_status(
+    *,
+    current_value: float,
+    baseline_value: Optional[float],
+    threshold_value: Optional[float],
+    direction: str,
+) -> tuple[str, str]:
+    comparator = threshold_value if threshold_value is not None else baseline_value
+    if comparator is None:
+        return "not-run", "missing threshold or baseline"
+    if direction == "lower-is-better":
+        passed = current_value <= comparator
+        return ("passed" if passed else "failed", f"current {current_value} <= limit {comparator}")
+    if direction == "higher-is-better":
+        passed = current_value >= comparator
+        return ("passed" if passed else "failed", f"current {current_value} >= limit {comparator}")
+    passed = current_value == comparator
+    return ("passed" if passed else "failed", f"current {current_value} == expected {comparator}")
+
+
+def cmd_runtime_benchmark(args: argparse.Namespace) -> None:
+    status, evidence = benchmark_status(
+        current_value=args.current_value,
+        baseline_value=args.baseline_value,
+        threshold_value=args.threshold_value,
+        direction=args.direction,
+    )
+    if args.status:
+        status = args.status
+    evidence = args.evidence or evidence
+    benchmark_id = None
+    with connect(args.db) as conn:
+        ensure_initialized(conn, args.schema)
+        if args.record:
+            cur = conn.execute(
+                """
+                INSERT INTO benchmark_runs(
+                    project, goal_id, run_id, name, metric, baseline_value,
+                    current_value, threshold_value, direction, unit, status,
+                    command, evidence
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    args.project,
+                    args.goal_id,
+                    args.run_id,
+                    args.name,
+                    args.metric,
+                    args.baseline_value,
+                    args.current_value,
+                    args.threshold_value,
+                    args.direction,
+                    args.unit,
+                    status,
+                    args.command,
+                    evidence,
+                ),
+            )
+            benchmark_id = cur.lastrowid
+            record_event(
+                conn,
+                project=args.project,
+                goal_id=args.goal_id,
+                run_id=args.run_id,
+                event_type="MetricsRecorded",
+                source="runtime-benchmark",
+                summary=f"Benchmark {args.name}/{args.metric} {status}.",
+                payload={
+                    "benchmark_id": benchmark_id,
+                    "name": args.name,
+                    "metric": args.metric,
+                    "baseline_value": args.baseline_value,
+                    "current_value": args.current_value,
+                    "threshold_value": args.threshold_value,
+                    "direction": args.direction,
+                    "status": status,
+                    "evidence": evidence,
+                },
+                severity="info" if status == "passed" else "warning",
+            )
+            conn.commit()
+    print_json(
+        {
+            "ok": status == "passed",
+            "id": benchmark_id,
+            "project": args.project,
+            "name": args.name,
+            "metric": args.metric,
+            "baseline_value": args.baseline_value,
+            "current_value": args.current_value,
+            "threshold_value": args.threshold_value,
+            "direction": args.direction,
+            "unit": args.unit,
+            "status": status,
+            "evidence": evidence,
+        }
+    )
 
 
 def load_policy_pack(pack_file: Path) -> Dict[str, Any]:
@@ -5306,6 +8130,145 @@ def cmd_runtime_run_tool(args: argparse.Namespace) -> None:
     failure_detail = None
     duration_ms = 0
 
+    gate_enabled = any(
+        (
+            args.intent_id,
+            args.intent_type,
+            args.mutation_authorization,
+            args.action_type,
+            args.tool,
+            args.target_paths,
+            args.approved_scope,
+            args.confidence is not None,
+            args.validation_plan,
+            args.user_approved,
+            args.risk_level != "normal",
+        )
+    )
+    if gate_enabled:
+        with connect(args.db) as conn:
+            ensure_initialized(conn, args.schema)
+            gate_data = action_gate_inputs_from_args(args, conn)
+
+        if not args.target_paths:
+            args.target_paths = target or command
+            gate_data["target_paths"] = args.target_paths
+            gate_data["gate"] = evaluate_action_gate(
+                intent_type=gate_data["intent_type"],
+                mutation_authorization=gate_data["mutation_authorization"],
+                action_type=gate_data["action_type"],
+                tool=gate_data["tool"],
+                target_paths=args.target_paths,
+                approved_scope=gate_data["approved_scope"],
+                confidence=gate_data["confidence"],
+                risk_level=gate_data["risk_level"],
+                user_approved=args.user_approved,
+                validation_plan=args.validation_plan,
+            )
+    else:
+        gate_data = {
+            "intent_id": None,
+            "intent_type": "task",
+            "mutation_authorization": "ambiguous",
+            "approved_scope": None,
+            "confidence": 1.0,
+            "risk_level": "normal",
+            "action_type": tool_type if tool_type in ACTION_TYPES else "read",
+            "tool": tool_key_for_action(
+                action_type=tool_type if tool_type in ACTION_TYPES else "read",
+                tool=None,
+                command=command,
+                method=args.method,
+                browser_action=args.browser_action,
+                allow_unsafe=args.allow_unsafe,
+            ),
+            "target_paths": args.target_paths,
+            "validation_plan": args.validation_plan,
+            "gate": {
+                "decision": "allowed",
+                "allowed_actions": [],
+                "blocked_actions": [],
+                "tool_actions": [],
+                "missing_requirements": [],
+                "reason": "no intent gate context supplied; legacy adapter policy applies",
+                "scope": {"ok": True, "reason": "not-evaluated"},
+                "requires_approval": False,
+            },
+        }
+
+    if gate_enabled and gate_data["gate"]["decision"] != "allowed":
+        result = "blocked"
+        stdout_summary = f"Execution gate {gate_data['gate']['decision']}: {gate_data['gate']['reason']}"
+        failure_type = "requirement"
+        failure_detail = gate_data["gate"]["decision"]
+        with connect(args.db) as conn:
+            ensure_initialized(conn, args.schema)
+            proposal_id = insert_action_proposal(
+                conn,
+                project=args.project,
+                intent_id=args.intent_id,
+                goal_id=args.goal_id,
+                run_id=args.run_id,
+                action_type=gate_data["action_type"],
+                tool=gate_data["tool"],
+                target_paths=args.target_paths,
+                reason=args.evidence or "runtime-run-tool execution request",
+                risk_level=gate_data["risk_level"],
+                validation_plan=args.validation_plan,
+                gate=gate_data["gate"],
+            )
+            tool_id = record_tool_run(
+                conn,
+                project=args.project,
+                goal_id=args.goal_id,
+                run_id=args.run_id,
+                task_id=args.task_id,
+                tool_type=tool_type,
+                adapter=adapter,
+                command=command,
+                target=target,
+                status=result,
+                exit_code=None,
+                duration_ms=duration_ms,
+                stdout_summary=stdout_summary,
+                failure_type=failure_type,
+                failure_detail=failure_detail,
+                evidence=args.evidence or stdout_summary,
+            )
+            record_event(
+                conn,
+                project=args.project,
+                run_id=args.run_id,
+                goal_id=args.goal_id,
+                task_id=args.task_id,
+                event_type="ActionBlocked",
+                source="runtime-run-tool",
+                summary=f"{tool_type} tool blocked by execution gate.",
+                payload={**gate_data, "tool_id": tool_id, "proposal_id": proposal_id},
+                severity="warning",
+            )
+            conn.commit()
+        print_json(
+            {
+                "ok": False,
+                "id": tool_id,
+                "proposal_id": proposal_id,
+                "project": args.project,
+                "tool_type": tool_type,
+                "adapter": adapter,
+                "status": result,
+                "exit_code": exit_code,
+                "duration_ms": duration_ms,
+                "failure_type": failure_type,
+                "failure_detail": failure_detail,
+                "stdout_summary": stdout_summary,
+                "gate": gate_data["gate"],
+                "action_type": gate_data["action_type"],
+                "tool": gate_data["tool"],
+            }
+        )
+        return
+
     started = time.perf_counter()
     if tool_type == "shell":
         if not command:
@@ -5400,11 +8363,11 @@ def cmd_runtime_run_tool(args: argparse.Namespace) -> None:
             event_type="KernelStep",
             source="runtime-run-tool",
             summary=f"{tool_type} tool {result}.",
-            payload={"tool_id": tool_id, "tool_type": tool_type, "adapter": adapter, "status": result, "failure_type": failure_type, "failure_detail": failure_detail},
+            payload={"tool_id": tool_id, "tool_type": tool_type, "adapter": adapter, "status": result, "failure_type": failure_type, "failure_detail": failure_detail, "gate": gate_data["gate"], "action_type": gate_data["action_type"], "tool": gate_data["tool"]},
             severity="info" if result in {"passed", "not-run"} else "error",
         )
         conn.commit()
-    print_json({"ok": result == "passed" or result == "not-run", "id": tool_id, "project": args.project, "tool_type": tool_type, "adapter": adapter, "status": result, "exit_code": exit_code, "duration_ms": duration_ms, "failure_type": failure_type, "failure_detail": failure_detail, "stdout_summary": stdout_summary})
+    print_json({"ok": result == "passed" or result == "not-run", "id": tool_id, "project": args.project, "tool_type": tool_type, "adapter": adapter, "status": result, "exit_code": exit_code, "duration_ms": duration_ms, "failure_type": failure_type, "failure_detail": failure_detail, "stdout_summary": stdout_summary, "gate": gate_data["gate"], "action_type": gate_data["action_type"], "tool": gate_data["tool"]})
 
 
 def classify_root_cause(source_type: str, failure_type: Optional[str], failure_detail: Optional[str], summary: str) -> str:
@@ -5967,6 +8930,42 @@ def cmd_runtime_final_check(args: argparse.Namespace) -> None:
             f"SELECT * FROM recovery_points WHERE project = ?{goal_clause} ORDER BY created_at",
             goal_params,
         ).fetchall()
+        intent_clause = " AND goal_id = ?" if goal_id else ""
+        intent_params: list[Any] = [args.project] + ([goal_id] if goal_id else [])
+        intents = conn.execute(
+            f"SELECT * FROM intent_states WHERE project = ?{intent_clause} ORDER BY updated_at",
+            intent_params,
+        ).fetchall()
+        action_proposals = conn.execute(
+            f"SELECT * FROM action_proposals WHERE project = ?{intent_clause} ORDER BY updated_at",
+            intent_params,
+        ).fetchall()
+        intent_ids = [row["id"] for row in intents]
+        if goal_id or args.run_id:
+            if intent_ids:
+                placeholders = ",".join("?" for _ in intent_ids)
+                open_drifts = conn.execute(
+                    f"""
+                    SELECT *
+                    FROM drift_events
+                    WHERE project = ? AND status = 'open'
+                      AND (intent_id IN ({placeholders}) OR intent_id IS NULL)
+                    ORDER BY created_at
+                    """,
+                    [args.project, *intent_ids],
+                ).fetchall()
+            else:
+                open_drifts = []
+        else:
+            open_drifts = conn.execute(
+                """
+                SELECT *
+                FROM drift_events
+                WHERE project = ? AND status = 'open'
+                ORDER BY created_at
+                """,
+                (args.project,),
+            ).fetchall()
         recovery_required = bool(recoveries) or any(
             row["decision_type"] == "rollback" and row["decision"] == "required"
             for row in policies
@@ -5997,6 +8996,66 @@ def cmd_runtime_final_check(args: argparse.Namespace) -> None:
             """,
             goal_params,
         ).fetchone()["count"]
+        event_messages = conn.execute(
+            f"""
+            SELECT *
+            FROM event_bus_messages
+            WHERE project = ?{goal_clause}
+              AND status IN ('pending', 'delivered', 'failed')
+            ORDER BY created_at
+            """,
+            goal_params,
+        ).fetchall()
+        schedule_items = conn.execute(
+            f"""
+            SELECT *
+            FROM runtime_schedule_items
+            WHERE project = ?{goal_clause}
+              AND status IN ('queued', 'ready', 'running', 'blocked')
+            ORDER BY priority DESC, created_at
+            """,
+            goal_params,
+        ).fetchall()
+        resource_leases = conn.execute(
+            f"""
+            SELECT *
+            FROM resource_leases
+            WHERE project = ?{goal_clause}
+              AND status IN ('requested', 'granted', 'denied')
+            ORDER BY created_at
+            """,
+            goal_params,
+        ).fetchall()
+        open_self_audit = conn.execute(
+            f"""
+            SELECT *
+            FROM self_audit_findings
+            WHERE project = ?{goal_clause}
+              AND status = 'open'
+            ORDER BY severity DESC, created_at
+            """,
+            goal_params,
+        ).fetchall()
+        latest_quality = conn.execute(
+            f"""
+            SELECT *
+            FROM quality_scores
+            WHERE project = ?{goal_clause}
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            goal_params,
+        ).fetchone()
+        bad_benchmarks = conn.execute(
+            f"""
+            SELECT *
+            FROM benchmark_runs
+            WHERE project = ?{goal_clause}
+              AND status IN ('failed', 'blocked', 'not-run')
+            ORDER BY created_at
+            """,
+            goal_params,
+        ).fetchall()
         docs_freshness = docs_freshness_for_request(
             goal["objective"] if goal else args.project,
             [row["title"] for row in tasks] + [row["decision"] for row in policies],
@@ -6053,6 +9112,28 @@ def cmd_runtime_final_check(args: argparse.Namespace) -> None:
         missing.append("verification records")
     if not policies:
         missing.append("policy decisions")
+    if any(row["status"] == "requires-approval" for row in action_proposals):
+        missing.append("action approval pending")
+    if any(row["status"] == "blocked" for row in action_proposals):
+        missing.append("blocked action proposal")
+    if open_drifts:
+        missing.append("open drift events")
+    if any(row["status"] in {"pending", "delivered"} for row in event_messages):
+        missing.append("unacknowledged event messages")
+    if any(row["status"] == "failed" for row in event_messages):
+        missing.append("failed event messages")
+    if schedule_items:
+        missing.append("open schedule items")
+    if any(row["status"] in {"requested", "denied"} for row in resource_leases):
+        missing.append("resource lease unresolved")
+    if any(row["status"] == "granted" for row in resource_leases):
+        missing.append("resource lease not released")
+    if open_self_audit:
+        missing.append("open self-audit findings")
+    if latest_quality and latest_quality["score"] < 70:
+        missing.append("quality score below threshold")
+    if bad_benchmarks:
+        missing.append("benchmark regression")
     if knowledge_conflict["conflict"]:
         missing.append("knowledge conflict")
     if args.require_docs:
@@ -6086,6 +9167,15 @@ def cmd_runtime_final_check(args: argparse.Namespace) -> None:
             "knowledge_conflict": knowledge_conflict,
             "pipeline_stages": stage_inputs,
             "verification": verification,
+            "intents": [row_to_dict(row) for row in intents],
+            "action_proposals": [row_to_dict(row) for row in action_proposals],
+            "open_drifts": [row_to_dict(row) for row in open_drifts],
+            "event_messages": [row_to_dict(row) for row in event_messages],
+            "schedule_items": [row_to_dict(row) for row in schedule_items],
+            "resource_leases": [row_to_dict(row) for row in resource_leases],
+            "open_self_audit_findings": [row_to_dict(row) for row in open_self_audit],
+            "latest_quality_score": row_to_dict(latest_quality) if latest_quality else None,
+            "bad_benchmarks": [row_to_dict(row) for row in bad_benchmarks],
             "recovery_count": len(recoveries),
             "recovery_ready": recovery_ready,
             "docs_workspace_exists": workspace["docs"]["exists"],
@@ -6191,6 +9281,11 @@ def cmd_runtime_report(args: argparse.Namespace) -> None:
             f"SELECT id, title, status, assigned_role, order_index FROM agent_tasks WHERE project = ?{goal_clause} ORDER BY order_index, created_at",
             params,
         ).fetchall()
+        intents = scoped_rows(conn, "intent_states", args.project, goal_id, args.run_id, "updated_at")
+        action_proposals = scoped_rows(conn, "action_proposals", args.project, goal_id, args.run_id, "updated_at")
+        feedback = scoped_intent_rows(conn, "feedback_events", args.project, goal_id, args.run_id)
+        drifts = scoped_intent_rows(conn, "drift_events", args.project, goal_id, args.run_id)
+        plan_versions = scoped_intent_rows(conn, "plan_versions", args.project, goal_id, args.run_id)
         policies = conn.execute(
             f"SELECT decision_type, decision, severity, blocking, rationale FROM policy_decisions WHERE project = ?{goal_clause} ORDER BY created_at",
             params,
@@ -6254,6 +9349,11 @@ def cmd_runtime_report(args: argparse.Namespace) -> None:
             "run": row_to_dict(run) if run else None,
             "goal": row_to_dict(goal) if goal else None,
             "tasks": [row_to_dict(row) for row in tasks],
+            "intents": intents,
+            "action_proposals": action_proposals,
+            "feedback": feedback,
+            "drifts": drifts,
+            "plan_versions": plan_versions,
             "policies": [row_to_dict(row) for row in policies],
             "verifications": [row_to_dict(row) for row in verifications],
             "recoveries": [row_to_dict(row) for row in recoveries],
@@ -7301,6 +10401,442 @@ def cmd_runtime_record(args: argparse.Namespace) -> None:
             ).fetchone()
             result = {"ok": True, "kind": args.kind, "id": row["id"], "project": args.project}
 
+        elif args.kind == "intent":
+            runtime_id = args.id or f"intent-{uuid.uuid4().hex[:8]}"
+            intent_type = args.intent_type or "task"
+            mutation_authorization = args.mutation_authorization or "ambiguous"
+            allowed_actions = normalize_csv(args.allowed_actions)
+            blocked_actions = normalize_csv(args.blocked_actions)
+            if allowed_actions is None and blocked_actions is None:
+                allowed, blocked = actions_for_intent(intent_type, mutation_authorization)
+                allowed_actions = normalize_csv(allowed)
+                blocked_actions = normalize_csv(blocked)
+            conn.execute(
+                """
+                INSERT INTO intent_states(
+                    id, project, goal_id, run_id, original_request, intent_type,
+                    mutation_authorization, approved_scope, current_phase, confidence,
+                    risk_level, allowed_actions, blocked_actions, explanation_required, evidence
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    project = excluded.project,
+                    goal_id = excluded.goal_id,
+                    run_id = excluded.run_id,
+                    original_request = excluded.original_request,
+                    intent_type = excluded.intent_type,
+                    mutation_authorization = excluded.mutation_authorization,
+                    approved_scope = excluded.approved_scope,
+                    current_phase = excluded.current_phase,
+                    confidence = excluded.confidence,
+                    risk_level = excluded.risk_level,
+                    allowed_actions = excluded.allowed_actions,
+                    blocked_actions = excluded.blocked_actions,
+                    explanation_required = excluded.explanation_required,
+                    evidence = excluded.evidence,
+                    updated_at = datetime('now')
+                """,
+                (
+                    runtime_id,
+                    args.project,
+                    args.goal_id,
+                    args.run_id,
+                    args.request or require_arg(args, "summary"),
+                    intent_type,
+                    mutation_authorization,
+                    args.approved_scope,
+                    args.current_phase or "parsed",
+                    args.confidence if args.confidence is not None else 0.5,
+                    args.risk_level,
+                    allowed_actions,
+                    blocked_actions,
+                    int(args.explanation_required),
+                    args.evidence,
+                ),
+            )
+            result = {"ok": True, "kind": args.kind, "id": runtime_id, "project": args.project}
+
+        elif args.kind == "action-proposal":
+            runtime_id = args.id or f"action-{uuid.uuid4().hex[:8]}"
+            status = args.status or "proposed"
+            conn.execute(
+                """
+                INSERT INTO action_proposals(
+                    id, project, intent_id, goal_id, run_id, action_type, tool,
+                    target_paths, reason, risk_level, status, gate_decision,
+                    gate_reason, requires_approval, validation_plan
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    intent_id = excluded.intent_id,
+                    goal_id = excluded.goal_id,
+                    run_id = excluded.run_id,
+                    action_type = excluded.action_type,
+                    tool = excluded.tool,
+                    target_paths = excluded.target_paths,
+                    reason = excluded.reason,
+                    risk_level = excluded.risk_level,
+                    status = excluded.status,
+                    gate_decision = excluded.gate_decision,
+                    gate_reason = excluded.gate_reason,
+                    requires_approval = excluded.requires_approval,
+                    validation_plan = excluded.validation_plan,
+                    updated_at = datetime('now')
+                """,
+                (
+                    runtime_id,
+                    args.project,
+                    args.intent_id,
+                    args.goal_id,
+                    args.run_id,
+                    require_arg(args, "action_type"),
+                    require_arg(args, "tool"),
+                    args.target_paths,
+                    require_arg(args, "reason"),
+                    args.risk_level,
+                    status,
+                    args.gate_decision,
+                    args.gate_reason,
+                    int(args.requires_approval),
+                    args.validation_plan,
+                ),
+            )
+            result = {"ok": True, "kind": args.kind, "id": runtime_id, "project": args.project}
+
+        elif args.kind == "approval":
+            cur = conn.execute(
+                """
+                INSERT INTO approval_records(
+                    project, intent_id, proposal_id, approved_by_user_text, approved_scope, expires_when
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    args.project,
+                    args.intent_id,
+                    args.proposal_id,
+                    require_arg(args, "approved_text"),
+                    args.approved_scope,
+                    args.expires_when,
+                ),
+            )
+            result = {"ok": True, "kind": args.kind, "id": cur.lastrowid, "project": args.project}
+
+        elif args.kind == "feedback":
+            cur = conn.execute(
+                """
+                INSERT INTO feedback_events(
+                    project, intent_id, proposal_id, observation_id, confidence_delta,
+                    risk_delta, scope_delta, evidence_delta, summary
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    args.project,
+                    args.intent_id,
+                    args.proposal_id,
+                    args.observation_id,
+                    args.confidence_delta,
+                    args.risk_delta,
+                    args.scope_delta,
+                    args.evidence_delta,
+                    require_arg(args, "summary"),
+                ),
+            )
+            result = {"ok": True, "kind": args.kind, "id": cur.lastrowid, "project": args.project}
+
+        elif args.kind == "drift":
+            status = args.status or "open"
+            cur = conn.execute(
+                """
+                INSERT INTO drift_events(
+                    project, intent_id, proposal_id, feedback_id, drift_type,
+                    severity, expected, actual, resolution, status
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    args.project,
+                    args.intent_id,
+                    args.proposal_id,
+                    args.feedback_id,
+                    require_arg(args, "drift_type"),
+                    args.severity,
+                    require_arg(args, "expected"),
+                    require_arg(args, "actual"),
+                    args.resolution or "re-anchor-required",
+                    status,
+                ),
+            )
+            result = {"ok": True, "kind": args.kind, "id": cur.lastrowid, "project": args.project}
+
+        elif args.kind == "plan-version":
+            row = conn.execute(
+                "SELECT COALESCE(MAX(version), 0) + 1 AS version FROM plan_versions WHERE project = ? AND intent_id IS ?",
+                (args.project, args.intent_id),
+            ).fetchone()
+            version = args.version if args.version is not None else int(row["version"])
+            status = args.status or "draft"
+            cur = conn.execute(
+                """
+                INSERT INTO plan_versions(
+                    project, intent_id, version, assumptions, steps, validation, rollback, status
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(intent_id, version) DO UPDATE SET
+                    assumptions = excluded.assumptions,
+                    steps = excluded.steps,
+                    validation = excluded.validation,
+                    rollback = excluded.rollback,
+                    status = excluded.status
+                """,
+                (
+                    args.project,
+                    args.intent_id,
+                    version,
+                    args.assumptions,
+                    require_arg(args, "steps"),
+                    args.validation,
+                    args.rollback,
+                    status,
+                ),
+            )
+            result = {
+                "ok": True,
+                "kind": args.kind,
+                "id": cur.lastrowid,
+                "project": args.project,
+                "version": version,
+            }
+
+        elif args.kind == "event-message":
+            runtime_id = args.id or f"event-msg-{uuid.uuid4().hex[:8]}"
+            status = args.status or "pending"
+            payload = {}
+            if args.payload_json:
+                try:
+                    payload = json.loads(args.payload_json)
+                except json.JSONDecodeError as exc:
+                    raise SystemExit(f"Invalid --payload-json: {exc}") from exc
+            conn.execute(
+                """
+                INSERT INTO event_bus_messages(
+                    id, project, run_id, goal_id, task_id, topic, subscriber,
+                    status, priority, payload_json, available_at, failure_detail
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')), ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    run_id = excluded.run_id,
+                    goal_id = excluded.goal_id,
+                    task_id = excluded.task_id,
+                    topic = excluded.topic,
+                    subscriber = excluded.subscriber,
+                    status = excluded.status,
+                    priority = excluded.priority,
+                    payload_json = excluded.payload_json,
+                    available_at = excluded.available_at,
+                    failure_detail = excluded.failure_detail,
+                    updated_at = datetime('now')
+                """,
+                (
+                    runtime_id,
+                    args.project,
+                    args.run_id,
+                    args.goal_id,
+                    args.task_id,
+                    require_arg(args, "topic"),
+                    args.subscriber,
+                    status,
+                    args.queue_priority,
+                    json.dumps(payload, ensure_ascii=False),
+                    args.available_at,
+                    args.failure_detail,
+                ),
+            )
+            result = {"ok": True, "kind": args.kind, "id": runtime_id, "project": args.project}
+
+        elif args.kind == "schedule-item":
+            runtime_id = args.id or f"schedule-{uuid.uuid4().hex[:8]}"
+            status = args.status or "queued"
+            conn.execute(
+                """
+                INSERT INTO runtime_schedule_items(
+                    id, project, run_id, goal_id, task_id, intent_id, action_type,
+                    assigned_role, status, priority, depends_on, required_resources,
+                    schedule_reason, next_action, available_at, blocker, evidence
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')), ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    run_id = excluded.run_id,
+                    goal_id = excluded.goal_id,
+                    task_id = excluded.task_id,
+                    intent_id = excluded.intent_id,
+                    action_type = excluded.action_type,
+                    assigned_role = excluded.assigned_role,
+                    status = excluded.status,
+                    priority = excluded.priority,
+                    depends_on = excluded.depends_on,
+                    required_resources = excluded.required_resources,
+                    schedule_reason = excluded.schedule_reason,
+                    next_action = excluded.next_action,
+                    available_at = excluded.available_at,
+                    blocker = excluded.blocker,
+                    evidence = excluded.evidence,
+                    updated_at = datetime('now')
+                """,
+                (
+                    runtime_id,
+                    args.project,
+                    args.run_id,
+                    args.goal_id,
+                    args.task_id,
+                    args.intent_id,
+                    require_arg(args, "action_type"),
+                    args.assigned_role,
+                    status,
+                    args.queue_priority,
+                    args.depends_on,
+                    args.required_resources,
+                    args.reason,
+                    args.next_action,
+                    args.available_at,
+                    args.blocker,
+                    args.evidence,
+                ),
+            )
+            result = {"ok": True, "kind": args.kind, "id": runtime_id, "project": args.project}
+
+        elif args.kind == "resource-lease":
+            runtime_id = args.id or f"lease-{uuid.uuid4().hex[:8]}"
+            status = args.status or "requested"
+            conn.execute(
+                """
+                INSERT INTO resource_leases(
+                    id, project, run_id, goal_id, task_id, schedule_id, resource_type,
+                    resource_key, quantity, status, reason, expires_at,
+                    granted_at, released_at
+                )
+                VALUES (
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    CASE WHEN ? = 'granted' THEN datetime('now') ELSE NULL END,
+                    CASE WHEN ? = 'released' THEN datetime('now') ELSE NULL END
+                )
+                ON CONFLICT(id) DO UPDATE SET
+                    run_id = excluded.run_id,
+                    goal_id = excluded.goal_id,
+                    task_id = excluded.task_id,
+                    schedule_id = excluded.schedule_id,
+                    resource_type = excluded.resource_type,
+                    resource_key = excluded.resource_key,
+                    quantity = excluded.quantity,
+                    status = excluded.status,
+                    reason = excluded.reason,
+                    expires_at = excluded.expires_at,
+                    granted_at = excluded.granted_at,
+                    released_at = excluded.released_at,
+                    updated_at = datetime('now')
+                """,
+                (
+                    runtime_id,
+                    args.project,
+                    args.run_id,
+                    args.goal_id,
+                    args.task_id,
+                    args.schedule_id,
+                    require_arg(args, "resource_type"),
+                    require_arg(args, "resource_key"),
+                    args.quantity,
+                    status,
+                    args.reason,
+                    args.expires_at,
+                    status,
+                    status,
+                ),
+            )
+            result = {"ok": True, "kind": args.kind, "id": runtime_id, "project": args.project}
+
+        elif args.kind == "quality-score":
+            cur = conn.execute(
+                """
+                INSERT INTO quality_scores(
+                    project, goal_id, run_id, score, grade, verification_score,
+                    intent_score, schedule_score, docs_score, recovery_score,
+                    memory_score, risk_penalty, evidence, metrics_json
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    args.project,
+                    args.goal_id,
+                    args.run_id,
+                    require_arg(args, "score"),
+                    require_arg(args, "grade"),
+                    args.verification_score,
+                    args.intent_score,
+                    args.schedule_score,
+                    args.docs_score,
+                    args.recovery_score,
+                    args.memory_score,
+                    args.risk_penalty,
+                    args.evidence,
+                    args.payload_json,
+                ),
+            )
+            result = {"ok": True, "kind": args.kind, "id": cur.lastrowid, "project": args.project}
+
+        elif args.kind == "self-audit-finding":
+            status = args.status or "open"
+            cur = conn.execute(
+                """
+                INSERT INTO self_audit_findings(
+                    project, goal_id, run_id, finding_type, severity, status,
+                    summary, evidence, recommendation
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    args.project,
+                    args.goal_id,
+                    args.run_id,
+                    require_arg(args, "finding_type"),
+                    args.severity,
+                    status,
+                    require_arg(args, "summary"),
+                    args.evidence,
+                    args.recommendation,
+                ),
+            )
+            result = {"ok": True, "kind": args.kind, "id": cur.lastrowid, "project": args.project}
+
+        elif args.kind == "benchmark":
+            status = args.status or "not-run"
+            cur = conn.execute(
+                """
+                INSERT INTO benchmark_runs(
+                    project, goal_id, run_id, name, metric, baseline_value,
+                    current_value, threshold_value, direction, unit, status,
+                    command, evidence
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    args.project,
+                    args.goal_id,
+                    args.run_id,
+                    require_arg(args, "name"),
+                    require_arg(args, "metric"),
+                    args.baseline_value,
+                    require_arg(args, "current_value"),
+                    args.threshold_value,
+                    args.direction,
+                    args.unit,
+                    status,
+                    args.command,
+                    args.evidence,
+                ),
+            )
+            result = {"ok": True, "kind": args.kind, "id": cur.lastrowid, "project": args.project}
+
         else:
             raise SystemExit(f"Unsupported runtime kind: {args.kind}")
 
@@ -7327,16 +10863,49 @@ def cmd_runtime_list(args: argparse.Namespace) -> None:
         "reflection": ("reflections", "created_at"),
         "improvement": ("improvement_reviews", "updated_at"),
         "event": ("agent_events", "created_at"),
+        "intent": ("intent_states", "updated_at"),
+        "action-proposal": ("action_proposals", "updated_at"),
+        "feedback": ("feedback_events", "created_at"),
+        "drift": ("drift_events", "created_at"),
+        "approval": ("approval_records", "created_at"),
+        "plan-version": ("plan_versions", "created_at"),
+        "event-message": ("event_bus_messages", "created_at"),
+        "schedule-item": ("runtime_schedule_items", "created_at"),
+        "resource-lease": ("resource_leases", "created_at"),
+        "quality-score": ("quality_scores", "created_at"),
+        "self-audit-finding": ("self_audit_findings", "updated_at"),
+        "benchmark": ("benchmark_runs", "created_at"),
     }
     table, order_column = table_by_kind[args.kind]
     where = ["project = ?"]
     params: list[Any] = [args.project]
 
-    if args.status and args.kind in {"goal", "task", "capability", "recovery", "improvement", "tool", "skill", "model", "subagent", "adapter"}:
-        status_column = "status"
+    status_columns = {
+        "goal": "status",
+        "task": "status",
+        "capability": "status",
+        "recovery": "status",
+        "improvement": "status",
+        "tool": "status",
+        "skill": "status",
+        "model": "status",
+        "subagent": "status",
+        "adapter": "status",
+        "intent": "current_phase",
+        "action-proposal": "status",
+        "drift": "status",
+        "plan-version": "status",
+        "event-message": "status",
+        "schedule-item": "status",
+        "resource-lease": "status",
+        "self-audit-finding": "status",
+        "benchmark": "status",
+    }
+    if args.status and args.kind in status_columns:
+        status_column = status_columns[args.kind]
         where.append(f"{status_column} = ?")
         params.append(args.status)
-    if args.goal_id and args.kind in {"task", "observation", "policy", "verification", "tool", "skill", "model", "subagent", "metrics", "recovery", "event"}:
+    if args.goal_id and args.kind in {"task", "observation", "policy", "verification", "tool", "skill", "model", "subagent", "metrics", "recovery", "event", "intent", "action-proposal", "event-message", "schedule-item", "resource-lease", "quality-score", "self-audit-finding", "benchmark"}:
         where.append("goal_id = ?")
         params.append(args.goal_id)
 
@@ -7495,6 +11064,116 @@ def cmd_runtime_summary(args: argparse.Namespace) -> None:
             """,
             (args.project, args.limit),
         ).fetchall()
+        recent_intents = conn.execute(
+            """
+            SELECT id, intent_type, mutation_authorization, current_phase, confidence, risk_level, updated_at
+            FROM intent_states
+            WHERE project = ?
+            ORDER BY updated_at DESC
+            LIMIT ?
+            """,
+            (args.project, args.limit),
+        ).fetchall()
+        recent_action_proposals = conn.execute(
+            """
+            SELECT id, intent_id, action_type, tool, status, gate_decision, requires_approval, updated_at
+            FROM action_proposals
+            WHERE project = ?
+            ORDER BY updated_at DESC
+            LIMIT ?
+            """,
+            (args.project, args.limit),
+        ).fetchall()
+        recent_feedback = conn.execute(
+            """
+            SELECT id, intent_id, proposal_id, confidence_delta, evidence_delta, summary, created_at
+            FROM feedback_events
+            WHERE project = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (args.project, args.limit),
+        ).fetchall()
+        recent_drifts = conn.execute(
+            """
+            SELECT id, intent_id, proposal_id, drift_type, severity, status, created_at
+            FROM drift_events
+            WHERE project = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (args.project, args.limit),
+        ).fetchall()
+        recent_plan_versions = conn.execute(
+            """
+            SELECT id, intent_id, version, status, validation, created_at
+            FROM plan_versions
+            WHERE project = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (args.project, args.limit),
+        ).fetchall()
+        recent_event_messages = conn.execute(
+            """
+            SELECT id, topic, subscriber, status, priority, available_at, updated_at
+            FROM event_bus_messages
+            WHERE project = ?
+            ORDER BY updated_at DESC
+            LIMIT ?
+            """,
+            (args.project, args.limit),
+        ).fetchall()
+        recent_schedule_items = conn.execute(
+            """
+            SELECT id, goal_id, task_id, action_type, assigned_role, status, priority, next_action, updated_at
+            FROM runtime_schedule_items
+            WHERE project = ?
+            ORDER BY updated_at DESC
+            LIMIT ?
+            """,
+            (args.project, args.limit),
+        ).fetchall()
+        recent_resource_leases = conn.execute(
+            """
+            SELECT id, schedule_id, resource_type, resource_key, quantity, status, expires_at, updated_at
+            FROM resource_leases
+            WHERE project = ?
+            ORDER BY updated_at DESC
+            LIMIT ?
+            """,
+            (args.project, args.limit),
+        ).fetchall()
+        recent_quality_scores = conn.execute(
+            """
+            SELECT id, goal_id, run_id, score, grade, risk_penalty, created_at
+            FROM quality_scores
+            WHERE project = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (args.project, args.limit),
+        ).fetchall()
+        recent_self_audit_findings = conn.execute(
+            """
+            SELECT id, goal_id, run_id, finding_type, severity, status, summary, updated_at
+            FROM self_audit_findings
+            WHERE project = ?
+            ORDER BY updated_at DESC
+            LIMIT ?
+            """,
+            (args.project, args.limit),
+        ).fetchall()
+        recent_benchmarks = conn.execute(
+            """
+            SELECT id, goal_id, run_id, name, metric, current_value, threshold_value, direction, status, created_at
+            FROM benchmark_runs
+            WHERE project = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (args.project, args.limit),
+        ).fetchall()
         open_improvements = conn.execute(
             """
             SELECT COUNT(*) AS count
@@ -7521,6 +11200,17 @@ def cmd_runtime_summary(args: argparse.Namespace) -> None:
             "recent_traces": [row_to_dict(row) for row in recent_traces],
             "recent_reflections": [row_to_dict(row) for row in recent_reflections],
             "recent_events": [row_to_dict(row) for row in recent_events],
+            "recent_intents": [row_to_dict(row) for row in recent_intents],
+            "recent_action_proposals": [row_to_dict(row) for row in recent_action_proposals],
+            "recent_feedback": [row_to_dict(row) for row in recent_feedback],
+            "recent_drifts": [row_to_dict(row) for row in recent_drifts],
+            "recent_plan_versions": [row_to_dict(row) for row in recent_plan_versions],
+            "recent_event_messages": [row_to_dict(row) for row in recent_event_messages],
+            "recent_schedule_items": [row_to_dict(row) for row in recent_schedule_items],
+            "recent_resource_leases": [row_to_dict(row) for row in recent_resource_leases],
+            "recent_quality_scores": [row_to_dict(row) for row in recent_quality_scores],
+            "recent_self_audit_findings": [row_to_dict(row) for row in recent_self_audit_findings],
+            "recent_benchmarks": [row_to_dict(row) for row in recent_benchmarks],
             "open_improvements": open_improvements,
         }
     )
@@ -7537,6 +11227,20 @@ def build_parser() -> argparse.ArgumentParser:
     context_parser.add_argument("--files", nargs="*")
     context_parser.add_argument("--record", action="store_true")
     context_parser.set_defaults(func=cmd_runtime_detect_context)
+
+    compile_mission_parser = subparsers.add_parser("runtime-compile-mission", help="Compile a user request into locked Mission IR")
+    add_common_args(compile_mission_parser)
+    compile_mission_parser.add_argument("--project")
+    compile_mission_parser.add_argument("--request", required=True)
+    compile_mission_parser.add_argument("--files", nargs="*")
+    compile_mission_parser.add_argument("--provider", default="builtin")
+    compile_mission_parser.add_argument("--base-url")
+    compile_mission_parser.add_argument("--api-key")
+    compile_mission_parser.add_argument("--model")
+    compile_mission_parser.add_argument("--llm-response")
+    compile_mission_parser.add_argument("--timeout", type=int, default=60)
+    compile_mission_parser.add_argument("--no-fallback", action="store_true")
+    compile_mission_parser.set_defaults(func=cmd_runtime_compile_mission)
 
     snapshot_parser = subparsers.add_parser("runtime-workspace-snapshot", help="Capture workspace state snapshot")
     add_common_args(snapshot_parser)
@@ -7581,6 +11285,208 @@ def build_parser() -> argparse.ArgumentParser:
     event_parser.add_argument("--payload-json")
     event_parser.add_argument("--severity", choices=("info", "warning", "error", "critical"), default="info")
     event_parser.set_defaults(func=cmd_runtime_record_event)
+
+    publish_event_parser = subparsers.add_parser("runtime-publish-event", help="Publish a message to the Agent OS event bus")
+    add_common_args(publish_event_parser)
+    publish_event_parser.add_argument("--project", required=True)
+    publish_event_parser.add_argument("--id")
+    publish_event_parser.add_argument("--run-id")
+    publish_event_parser.add_argument("--goal-id")
+    publish_event_parser.add_argument("--task-id")
+    publish_event_parser.add_argument("--topic", required=True)
+    publish_event_parser.add_argument("--subscriber", default="*")
+    publish_event_parser.add_argument("--event-type", choices=EVENT_TYPES)
+    publish_event_parser.add_argument("--source")
+    publish_event_parser.add_argument("--summary", required=True)
+    publish_event_parser.add_argument("--payload-json")
+    publish_event_parser.add_argument("--priority", type=int, default=0)
+    publish_event_parser.add_argument("--available-at")
+    publish_event_parser.add_argument("--severity", choices=("info", "warning", "error", "critical"), default="info")
+    publish_event_parser.set_defaults(func=cmd_runtime_publish_event)
+
+    poll_events_parser = subparsers.add_parser("runtime-poll-events", help="Poll pending Agent OS event bus messages")
+    add_common_args(poll_events_parser)
+    poll_events_parser.add_argument("--project", required=True)
+    poll_events_parser.add_argument("--subscriber", required=True)
+    poll_events_parser.add_argument("--topic")
+    poll_events_parser.add_argument("--limit", type=int, default=10)
+    poll_events_parser.add_argument("--deliver", action="store_true")
+    poll_events_parser.set_defaults(func=cmd_runtime_poll_events)
+
+    ack_event_parser = subparsers.add_parser("runtime-ack-event", help="Acknowledge or fail an Agent OS event bus message")
+    add_common_args(ack_event_parser)
+    ack_event_parser.add_argument("--project", required=True)
+    ack_event_parser.add_argument("--id", required=True)
+    ack_event_parser.add_argument("--ok", action="store_true")
+    ack_event_parser.add_argument("--failure-detail")
+    ack_event_parser.set_defaults(func=cmd_runtime_ack_event)
+
+    intent_parser = subparsers.add_parser("runtime-detect-intent", help="Detect and optionally record structured intent state")
+    add_common_args(intent_parser)
+    intent_parser.add_argument("--project")
+    intent_parser.add_argument("--goal-id")
+    intent_parser.add_argument("--run-id")
+    intent_parser.add_argument("--intent-id")
+    intent_parser.add_argument("--request", required=True)
+    intent_parser.add_argument("--files", nargs="*")
+    intent_parser.add_argument("--provider", default="builtin")
+    intent_parser.add_argument("--base-url")
+    intent_parser.add_argument("--api-key")
+    intent_parser.add_argument("--model")
+    intent_parser.add_argument("--llm-response")
+    intent_parser.add_argument("--timeout", type=int, default=60)
+    intent_parser.add_argument("--no-fallback", action="store_true")
+    intent_parser.add_argument("--record", action="store_true")
+    intent_parser.set_defaults(func=cmd_runtime_detect_intent)
+
+    registry_parser = subparsers.add_parser("runtime-tool-registry", help="List runtime tool action classifications")
+    add_common_args(registry_parser)
+    registry_parser.add_argument("--action", choices=ACTION_TYPES)
+    registry_parser.add_argument("--write-only", action="store_true")
+    registry_parser.set_defaults(func=cmd_runtime_tool_registry)
+
+    validate_action_parser = subparsers.add_parser("runtime-validate-action", help="Evaluate the execution gate for an action")
+    add_common_args(validate_action_parser)
+    validate_action_parser.add_argument("--project", required=True)
+    validate_action_parser.add_argument("--goal-id")
+    validate_action_parser.add_argument("--run-id")
+    validate_action_parser.add_argument("--intent-id")
+    validate_action_parser.add_argument("--intent-type", choices=INTENT_TYPES)
+    validate_action_parser.add_argument("--mutation-authorization", choices=MUTATION_AUTHORIZATIONS)
+    validate_action_parser.add_argument("--action-type", choices=ACTION_TYPES)
+    validate_action_parser.add_argument("--tool")
+    validate_action_parser.add_argument("--tool-type", choices=("shell", "git", "api", "browser"))
+    validate_action_parser.add_argument("--command")
+    validate_action_parser.add_argument("--target")
+    validate_action_parser.add_argument("--method", default="GET")
+    validate_action_parser.add_argument("--browser-action", choices=("open", "check-text", "click", "type", "screenshot"), default="check-text")
+    validate_action_parser.add_argument("--target-paths")
+    validate_action_parser.add_argument("--approved-scope")
+    validate_action_parser.add_argument("--confidence", type=float)
+    validate_action_parser.add_argument("--risk-level", choices=("low", "normal", "high", "critical"), default="normal")
+    validate_action_parser.add_argument("--validation-plan")
+    validate_action_parser.add_argument("--user-approved", action="store_true")
+    validate_action_parser.add_argument("--allow-unsafe", action="store_true")
+    validate_action_parser.add_argument("--record", action="store_true")
+    validate_action_parser.set_defaults(func=cmd_runtime_validate_action)
+
+    propose_action_parser = subparsers.add_parser("runtime-propose-action", help="Create an action proposal and run the execution gate")
+    add_common_args(propose_action_parser)
+    propose_action_parser.add_argument("--id")
+    propose_action_parser.add_argument("--project", required=True)
+    propose_action_parser.add_argument("--goal-id")
+    propose_action_parser.add_argument("--run-id")
+    propose_action_parser.add_argument("--intent-id")
+    propose_action_parser.add_argument("--intent-type", choices=INTENT_TYPES)
+    propose_action_parser.add_argument("--mutation-authorization", choices=MUTATION_AUTHORIZATIONS)
+    propose_action_parser.add_argument("--action-type", choices=ACTION_TYPES)
+    propose_action_parser.add_argument("--tool")
+    propose_action_parser.add_argument("--tool-type", choices=("shell", "git", "api", "browser"))
+    propose_action_parser.add_argument("--command")
+    propose_action_parser.add_argument("--target")
+    propose_action_parser.add_argument("--method", default="GET")
+    propose_action_parser.add_argument("--browser-action", choices=("open", "check-text", "click", "type", "screenshot"), default="check-text")
+    propose_action_parser.add_argument("--target-paths")
+    propose_action_parser.add_argument("--approved-scope")
+    propose_action_parser.add_argument("--confidence", type=float)
+    propose_action_parser.add_argument("--risk-level", choices=("low", "normal", "high", "critical"), default="normal")
+    propose_action_parser.add_argument("--validation-plan")
+    propose_action_parser.add_argument("--user-approved", action="store_true")
+    propose_action_parser.add_argument("--allow-unsafe", action="store_true")
+    propose_action_parser.add_argument("--reason", required=True)
+    propose_action_parser.set_defaults(func=cmd_runtime_propose_action)
+
+    execution_gate_parser = subparsers.add_parser("runtime-execution-gate", help="Re-evaluate a proposal or action before execution")
+    add_common_args(execution_gate_parser)
+    execution_gate_parser.add_argument("--project", required=True)
+    execution_gate_parser.add_argument("--goal-id")
+    execution_gate_parser.add_argument("--run-id")
+    execution_gate_parser.add_argument("--proposal-id")
+    execution_gate_parser.add_argument("--intent-id")
+    execution_gate_parser.add_argument("--intent-type", choices=INTENT_TYPES)
+    execution_gate_parser.add_argument("--mutation-authorization", choices=MUTATION_AUTHORIZATIONS)
+    execution_gate_parser.add_argument("--action-type", choices=ACTION_TYPES)
+    execution_gate_parser.add_argument("--tool")
+    execution_gate_parser.add_argument("--tool-type", choices=("shell", "git", "api", "browser"))
+    execution_gate_parser.add_argument("--command")
+    execution_gate_parser.add_argument("--target")
+    execution_gate_parser.add_argument("--method", default="GET")
+    execution_gate_parser.add_argument("--browser-action", choices=("open", "check-text", "click", "type", "screenshot"), default="check-text")
+    execution_gate_parser.add_argument("--target-paths")
+    execution_gate_parser.add_argument("--approved-scope")
+    execution_gate_parser.add_argument("--confidence", type=float)
+    execution_gate_parser.add_argument("--risk-level", choices=("low", "normal", "high", "critical"))
+    execution_gate_parser.add_argument("--validation-plan")
+    execution_gate_parser.add_argument("--user-approved", action="store_true")
+    execution_gate_parser.add_argument("--allow-unsafe", action="store_true")
+    execution_gate_parser.add_argument("--record", action="store_true")
+    execution_gate_parser.set_defaults(func=cmd_runtime_execution_gate)
+
+    approve_action_parser = subparsers.add_parser("runtime-approve-action", help="Record user approval for a proposal or intent")
+    add_common_args(approve_action_parser)
+    approve_action_parser.add_argument("--project", required=True)
+    approve_action_parser.add_argument("--goal-id")
+    approve_action_parser.add_argument("--run-id")
+    approve_action_parser.add_argument("--intent-id")
+    approve_action_parser.add_argument("--proposal-id")
+    approve_action_parser.add_argument("--approved-text", required=True)
+    approve_action_parser.add_argument("--approved-scope")
+    approve_action_parser.add_argument("--expires-when")
+    approve_action_parser.set_defaults(func=cmd_runtime_approve_action)
+
+    feedback_parser = subparsers.add_parser("runtime-record-feedback", help="Record execution feedback into the intent loop")
+    add_common_args(feedback_parser)
+    feedback_parser.add_argument("--project", required=True)
+    feedback_parser.add_argument("--goal-id")
+    feedback_parser.add_argument("--run-id")
+    feedback_parser.add_argument("--intent-id")
+    feedback_parser.add_argument("--proposal-id")
+    feedback_parser.add_argument("--observation-id", type=int)
+    feedback_parser.add_argument("--confidence-delta", type=float, default=0)
+    feedback_parser.add_argument("--risk-delta", choices=("none", "increased", "decreased"), default="none")
+    feedback_parser.add_argument("--scope-delta", choices=("none", "expanded", "narrowed", "changed"), default="none")
+    feedback_parser.add_argument("--evidence-delta", choices=("none", "supports", "contradicts", "new-evidence"), default="none")
+    feedback_parser.add_argument("--summary", required=True)
+    feedback_parser.set_defaults(func=cmd_runtime_record_feedback)
+
+    drift_parser = subparsers.add_parser("runtime-detect-drift", help="Detect execution drift from intent, proposal, or actual action")
+    add_common_args(drift_parser)
+    drift_parser.add_argument("--project", required=True)
+    drift_parser.add_argument("--goal-id")
+    drift_parser.add_argument("--run-id")
+    drift_parser.add_argument("--intent-id")
+    drift_parser.add_argument("--proposal-id")
+    drift_parser.add_argument("--feedback-id", type=int)
+    drift_parser.add_argument("--actual-action", choices=ACTION_TYPES)
+    drift_parser.add_argument("--actual-tool")
+    drift_parser.add_argument("--actual-scope")
+    drift_parser.add_argument("--confidence", type=float)
+    drift_parser.add_argument("--resolution", default="re-anchor-required")
+    drift_parser.add_argument("--record", action="store_true")
+    drift_parser.set_defaults(func=cmd_runtime_detect_drift)
+
+    reanchor_parser = subparsers.add_parser("runtime-reanchor", help="Request user re-anchor after drift or uncertainty")
+    add_common_args(reanchor_parser)
+    reanchor_parser.add_argument("--project", required=True)
+    reanchor_parser.add_argument("--goal-id")
+    reanchor_parser.add_argument("--run-id")
+    reanchor_parser.add_argument("--intent-id", required=True)
+    reanchor_parser.add_argument("--prompt")
+    reanchor_parser.set_defaults(func=cmd_runtime_reanchor)
+
+    revise_plan_parser = subparsers.add_parser("runtime-revise-plan", help="Record a revised execution plan version")
+    add_common_args(revise_plan_parser)
+    revise_plan_parser.add_argument("--project", required=True)
+    revise_plan_parser.add_argument("--goal-id")
+    revise_plan_parser.add_argument("--run-id")
+    revise_plan_parser.add_argument("--intent-id")
+    revise_plan_parser.add_argument("--version", type=int)
+    revise_plan_parser.add_argument("--assumptions")
+    revise_plan_parser.add_argument("--steps", required=True)
+    revise_plan_parser.add_argument("--validation")
+    revise_plan_parser.add_argument("--rollback")
+    revise_plan_parser.add_argument("--status", choices=("draft", "active", "superseded", "completed"), default="draft")
+    revise_plan_parser.set_defaults(func=cmd_runtime_revise_plan)
 
     run_parser = subparsers.add_parser("runtime-run", help="Run the full Agent Runtime planning loop")
     add_common_args(run_parser)
@@ -7719,6 +11625,17 @@ def build_parser() -> argparse.ArgumentParser:
     run_tool_parser.add_argument("--run-id")
     run_tool_parser.add_argument("--task-id")
     run_tool_parser.add_argument("--tool-type", choices=("shell", "git", "api", "browser"))
+    run_tool_parser.add_argument("--tool")
+    run_tool_parser.add_argument("--intent-id")
+    run_tool_parser.add_argument("--intent-type", choices=INTENT_TYPES)
+    run_tool_parser.add_argument("--mutation-authorization", choices=MUTATION_AUTHORIZATIONS)
+    run_tool_parser.add_argument("--action-type", choices=ACTION_TYPES)
+    run_tool_parser.add_argument("--target-paths")
+    run_tool_parser.add_argument("--approved-scope")
+    run_tool_parser.add_argument("--confidence", type=float)
+    run_tool_parser.add_argument("--risk-level", choices=("low", "normal", "high", "critical"), default="normal")
+    run_tool_parser.add_argument("--validation-plan")
+    run_tool_parser.add_argument("--user-approved", action="store_true")
     run_tool_parser.add_argument("--adapter")
     run_tool_parser.add_argument("--command")
     run_tool_parser.add_argument("--target")
@@ -7853,6 +11770,15 @@ def build_parser() -> argparse.ArgumentParser:
     detect_adapter_parser.add_argument("--require-capability", nargs="*")
     detect_adapter_parser.set_defaults(func=cmd_runtime_detect_host_adapter)
 
+    compatibility_parser = subparsers.add_parser("runtime-compatibility-matrix", help="Report model provider and host adapter compatibility")
+    add_common_args(compatibility_parser)
+    compatibility_parser.add_argument("--project", required=True)
+    compatibility_parser.add_argument("--provider", choices=MODEL_PROVIDERS, nargs="*")
+    compatibility_parser.add_argument("--host-type", choices=HOST_TYPES, nargs="*")
+    compatibility_parser.add_argument("--require-capability", nargs="*")
+    compatibility_parser.add_argument("--output", type=Path)
+    compatibility_parser.set_defaults(func=cmd_runtime_compatibility_matrix)
+
     metrics_parser = subparsers.add_parser("runtime-metrics", help="Calculate observability metrics for runtime activity")
     add_common_args(metrics_parser)
     metrics_parser.add_argument("--project", required=True)
@@ -7902,6 +11828,41 @@ def build_parser() -> argparse.ArgumentParser:
     trends_parser.add_argument("--limit", type=int, default=20)
     trends_parser.add_argument("--output", type=Path)
     trends_parser.set_defaults(func=cmd_runtime_quality_trends)
+
+    quality_score_parser = subparsers.add_parser("runtime-quality-score", help="Calculate and optionally record a scoped runtime quality score")
+    add_common_args(quality_score_parser)
+    quality_score_parser.add_argument("--project", required=True)
+    quality_score_parser.add_argument("--goal-id")
+    quality_score_parser.add_argument("--run-id")
+    quality_score_parser.add_argument("--min-score", type=float, default=70)
+    quality_score_parser.add_argument("--record", action="store_true")
+    quality_score_parser.set_defaults(func=cmd_runtime_quality_score)
+
+    self_audit_parser = subparsers.add_parser("runtime-self-audit", help="Find open runtime governance and completion risks")
+    add_common_args(self_audit_parser)
+    self_audit_parser.add_argument("--project", required=True)
+    self_audit_parser.add_argument("--goal-id")
+    self_audit_parser.add_argument("--run-id")
+    self_audit_parser.add_argument("--record", action="store_true")
+    self_audit_parser.set_defaults(func=cmd_runtime_self_audit)
+
+    benchmark_parser = subparsers.add_parser("runtime-benchmark", help="Record and evaluate a benchmark or performance non-regression metric")
+    add_common_args(benchmark_parser)
+    benchmark_parser.add_argument("--project", required=True)
+    benchmark_parser.add_argument("--goal-id")
+    benchmark_parser.add_argument("--run-id")
+    benchmark_parser.add_argument("--name", required=True)
+    benchmark_parser.add_argument("--metric", required=True)
+    benchmark_parser.add_argument("--baseline-value", type=float)
+    benchmark_parser.add_argument("--current-value", type=float, required=True)
+    benchmark_parser.add_argument("--threshold-value", type=float)
+    benchmark_parser.add_argument("--direction", choices=BENCHMARK_DIRECTIONS, default="lower-is-better")
+    benchmark_parser.add_argument("--unit")
+    benchmark_parser.add_argument("--status", choices=("passed", "failed", "blocked", "not-run"))
+    benchmark_parser.add_argument("--command")
+    benchmark_parser.add_argument("--evidence")
+    benchmark_parser.add_argument("--record", action="store_true")
+    benchmark_parser.set_defaults(func=cmd_runtime_benchmark)
 
     policy_packs_parser = subparsers.add_parser("runtime-policy-packs", help="List and validate reusable team policy packs")
     add_common_args(policy_packs_parser)
@@ -8040,6 +12001,21 @@ def build_parser() -> argparse.ArgumentParser:
     improvement_parser.add_argument("--record", action="store_true")
     improvement_parser.set_defaults(func=cmd_runtime_review_improvements)
 
+    governance_parser = subparsers.add_parser("runtime-governance-proposal", help="Record a governed Agent OS rule or skill evolution proposal")
+    add_common_args(governance_parser)
+    governance_parser.add_argument("--project", required=True)
+    governance_parser.add_argument("--goal-id")
+    governance_parser.add_argument("--run-id")
+    governance_parser.add_argument("--name", required=True)
+    governance_parser.add_argument("--source-type", choices=("skill", "rule"), default="rule")
+    governance_parser.add_argument("--trigger", required=True)
+    governance_parser.add_argument("--evidence", required=True)
+    governance_parser.add_argument("--validation")
+    governance_parser.add_argument("--scope")
+    governance_parser.add_argument("--boundary")
+    governance_parser.add_argument("--ready-for-review", action="store_true")
+    governance_parser.set_defaults(func=cmd_runtime_governance_proposal)
+
     report_parser = subparsers.add_parser("runtime-report", help="Generate a scoped runtime audit report")
     add_common_args(report_parser)
     report_parser.add_argument("--project", required=True)
@@ -8058,6 +12034,10 @@ def build_parser() -> argparse.ArgumentParser:
     runtime_record_parser.add_argument("--objective")
     runtime_record_parser.add_argument("--title")
     runtime_record_parser.add_argument("--summary")
+    runtime_record_parser.add_argument("--topic")
+    runtime_record_parser.add_argument("--subscriber", default="*")
+    runtime_record_parser.add_argument("--payload-json")
+    runtime_record_parser.add_argument("--request")
     runtime_record_parser.add_argument("--source")
     runtime_record_parser.add_argument("--name")
     runtime_record_parser.add_argument("--status")
@@ -8111,6 +12091,68 @@ def build_parser() -> argparse.ArgumentParser:
     runtime_record_parser.add_argument("--trigger")
     runtime_record_parser.add_argument("--boundary")
     runtime_record_parser.add_argument("--review-result")
+    runtime_record_parser.add_argument("--intent-id")
+    runtime_record_parser.add_argument("--intent-type", choices=INTENT_TYPES)
+    runtime_record_parser.add_argument("--mutation-authorization", choices=MUTATION_AUTHORIZATIONS)
+    runtime_record_parser.add_argument("--approved-scope")
+    runtime_record_parser.add_argument("--confidence", type=float)
+    runtime_record_parser.add_argument("--risk-level", choices=("low", "normal", "high", "critical"), default="normal")
+    runtime_record_parser.add_argument("--allowed-actions", nargs="*")
+    runtime_record_parser.add_argument("--blocked-actions", nargs="*")
+    runtime_record_parser.add_argument("--explanation-required", action="store_true")
+    runtime_record_parser.add_argument("--proposal-id")
+    runtime_record_parser.add_argument("--action-type", choices=ACTION_TYPES)
+    runtime_record_parser.add_argument("--tool")
+    runtime_record_parser.add_argument("--target-paths")
+    runtime_record_parser.add_argument("--reason")
+    runtime_record_parser.add_argument("--gate-decision")
+    runtime_record_parser.add_argument("--gate-reason")
+    runtime_record_parser.add_argument("--requires-approval", action="store_true")
+    runtime_record_parser.add_argument("--validation-plan")
+    runtime_record_parser.add_argument("--approved-text")
+    runtime_record_parser.add_argument("--expires-when")
+    runtime_record_parser.add_argument("--observation-id", type=int)
+    runtime_record_parser.add_argument("--feedback-id", type=int)
+    runtime_record_parser.add_argument("--confidence-delta", type=float, default=0)
+    runtime_record_parser.add_argument("--risk-delta", choices=("none", "increased", "decreased"), default="none")
+    runtime_record_parser.add_argument("--scope-delta", choices=("none", "expanded", "narrowed", "changed"), default="none")
+    runtime_record_parser.add_argument("--evidence-delta", choices=("none", "supports", "contradicts", "new-evidence"), default="none")
+    runtime_record_parser.add_argument("--drift-type", choices=DRIFT_TYPES)
+    runtime_record_parser.add_argument("--expected")
+    runtime_record_parser.add_argument("--actual")
+    runtime_record_parser.add_argument("--resolution")
+    runtime_record_parser.add_argument("--version", type=int)
+    runtime_record_parser.add_argument("--assumptions")
+    runtime_record_parser.add_argument("--steps")
+    runtime_record_parser.add_argument("--validation")
+    runtime_record_parser.add_argument("--rollback")
+    runtime_record_parser.add_argument("--available-at")
+    runtime_record_parser.add_argument("--depends-on")
+    runtime_record_parser.add_argument("--required-resources")
+    runtime_record_parser.add_argument("--next-action")
+    runtime_record_parser.add_argument("--schedule-id")
+    runtime_record_parser.add_argument("--resource-type", choices=RESOURCE_TYPES)
+    runtime_record_parser.add_argument("--resource-key")
+    runtime_record_parser.add_argument("--quantity", type=int, default=1)
+    runtime_record_parser.add_argument("--queue-priority", type=int, default=0)
+    runtime_record_parser.add_argument("--failure-detail")
+    runtime_record_parser.add_argument("--score", type=float)
+    runtime_record_parser.add_argument("--grade", choices=("A", "B", "C", "D", "F"))
+    runtime_record_parser.add_argument("--verification-score", type=float, default=0)
+    runtime_record_parser.add_argument("--intent-score", type=float, default=0)
+    runtime_record_parser.add_argument("--schedule-score", type=float, default=0)
+    runtime_record_parser.add_argument("--docs-score", type=float, default=0)
+    runtime_record_parser.add_argument("--recovery-score", type=float, default=0)
+    runtime_record_parser.add_argument("--memory-score", type=float, default=0)
+    runtime_record_parser.add_argument("--risk-penalty", type=float, default=0)
+    runtime_record_parser.add_argument("--finding-type")
+    runtime_record_parser.add_argument("--recommendation")
+    runtime_record_parser.add_argument("--metric")
+    runtime_record_parser.add_argument("--baseline-value", type=float)
+    runtime_record_parser.add_argument("--current-value", type=float)
+    runtime_record_parser.add_argument("--threshold-value", type=float)
+    runtime_record_parser.add_argument("--direction", choices=BENCHMARK_DIRECTIONS, default="lower-is-better")
+    runtime_record_parser.add_argument("--unit")
     runtime_record_parser.add_argument("--evidence")
     runtime_record_parser.set_defaults(func=cmd_runtime_record)
 
@@ -8167,6 +12209,67 @@ def build_parser() -> argparse.ArgumentParser:
     runtime_next_parser.add_argument("--goal-id")
     runtime_next_parser.add_argument("--advance", action="store_true", help="Move the selected pending task to in_progress")
     runtime_next_parser.set_defaults(func=cmd_runtime_next)
+
+    schedule_parser = subparsers.add_parser("runtime-schedule", help="Add or update a Scheduler queue item")
+    add_common_args(schedule_parser)
+    schedule_parser.add_argument("--project", required=True)
+    schedule_parser.add_argument("--id")
+    schedule_parser.add_argument("--run-id")
+    schedule_parser.add_argument("--goal-id")
+    schedule_parser.add_argument("--task-id")
+    schedule_parser.add_argument("--intent-id")
+    schedule_parser.add_argument("--action-type", choices=ACTION_TYPES, required=True)
+    schedule_parser.add_argument("--assigned-role")
+    schedule_parser.add_argument("--status", choices=SCHEDULE_STATUSES)
+    schedule_parser.add_argument("--priority", type=int, default=0)
+    schedule_parser.add_argument("--depends-on")
+    schedule_parser.add_argument("--required-resources")
+    schedule_parser.add_argument("--reason")
+    schedule_parser.add_argument("--next-action")
+    schedule_parser.add_argument("--available-at")
+    schedule_parser.add_argument("--blocker")
+    schedule_parser.add_argument("--evidence")
+    schedule_parser.set_defaults(func=cmd_runtime_schedule)
+
+    scheduler_next_parser = subparsers.add_parser("runtime-scheduler-next", help="Select the next schedulable Agent OS queue item")
+    add_common_args(scheduler_next_parser)
+    scheduler_next_parser.add_argument("--project", required=True)
+    scheduler_next_parser.add_argument("--goal-id")
+    scheduler_next_parser.add_argument("--limit", type=int, default=20)
+    scheduler_next_parser.add_argument("--advance", action="store_true")
+    scheduler_next_parser.set_defaults(func=cmd_runtime_scheduler_next)
+
+    schedule_complete_parser = subparsers.add_parser("runtime-schedule-complete", help="Complete or block a Scheduler queue item")
+    add_common_args(schedule_complete_parser)
+    schedule_complete_parser.add_argument("--project", required=True)
+    schedule_complete_parser.add_argument("--id", required=True)
+    schedule_complete_parser.add_argument("--ok", action="store_true")
+    schedule_complete_parser.add_argument("--blocker")
+    schedule_complete_parser.add_argument("--evidence")
+    schedule_complete_parser.set_defaults(func=cmd_runtime_schedule_complete)
+
+    request_resource_parser = subparsers.add_parser("runtime-request-resource", help="Request a Resource Manager lease")
+    add_common_args(request_resource_parser)
+    request_resource_parser.add_argument("--project", required=True)
+    request_resource_parser.add_argument("--id")
+    request_resource_parser.add_argument("--run-id")
+    request_resource_parser.add_argument("--goal-id")
+    request_resource_parser.add_argument("--task-id")
+    request_resource_parser.add_argument("--schedule-id")
+    request_resource_parser.add_argument("--resource-type", choices=RESOURCE_TYPES, required=True)
+    request_resource_parser.add_argument("--resource-key", required=True)
+    request_resource_parser.add_argument("--quantity", type=int, default=1)
+    request_resource_parser.add_argument("--reason")
+    request_resource_parser.add_argument("--expires-at")
+    request_resource_parser.add_argument("--force", action="store_true")
+    request_resource_parser.set_defaults(func=cmd_runtime_request_resource)
+
+    release_resource_parser = subparsers.add_parser("runtime-release-resource", help="Release a Resource Manager lease")
+    add_common_args(release_resource_parser)
+    release_resource_parser.add_argument("--project", required=True)
+    release_resource_parser.add_argument("--id", required=True)
+    release_resource_parser.add_argument("--reason")
+    release_resource_parser.set_defaults(func=cmd_runtime_release_resource)
 
     verification_plan_parser = subparsers.add_parser("runtime-plan-verification", help="Plan verification checks for a task")
     add_common_args(verification_plan_parser)

@@ -25,6 +25,8 @@ Direct execution is allowed only when:
 
 Every workflow starts with user-visible intent.
 
+Workflow selection does not grant file mutation permission. Apply the Mutation Authorization Gate first: diagnosis, review, analysis, and inspection requests remain read-only unless the user explicitly authorizes fixes or file changes.
+
 The agent must not say:
 
 - "the plan is ready"
