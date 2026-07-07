@@ -1,0 +1,15 @@
+#!/bin/sh
+# Agent OS managed pre-commit hook
+# 调用 Python 门控;非零退出即拒绝提交。
+# 删除本文件或设置 AGENT_OS_HOOK_MODE=off 即可临时禁用。
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+GATE="$ROOT/.agent-os/hooks/pre_commit_gate.py"
+[ -f "$GATE" ] || exit 0
+if command -v python3 >/dev/null 2>&1; then
+  PY=python3
+elif command -v python >/dev/null 2>&1 && python -c 'import sys; raise SystemExit(0 if sys.version_info[0] >= 3 else 1)' >/dev/null 2>&1; then
+  PY=python
+else
+  exit 0
+fi
+"$PY" "$GATE"

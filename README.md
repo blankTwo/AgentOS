@@ -92,6 +92,34 @@ python scripts/agent-runtime.py runtime-compile-mission \
 
 只读诊断会被锁定为 `diagnose + readonly + allowWrite=false`。如果 LLM 超时、返回 Markdown 包裹、坏 JSON、字段不合规或上游 502，Runtime 会清洗和归一化；无法恢复时自动回退本地规则算法。
 
+## 执行门控强制化(PEP)
+
+Execution Gate 默认只是“建议性”的：宿主 Agent 不主动调用就不会触发。安装时会根据**目标宿主**落地不同强度的策略执行点(PEP)：
+
+| 宿主(`--host`,默认 codex) | 入口文件 | 工具级拦截 | 强制等级 |
+| --- | --- | --- | --- |
+| `codex` | `AGENTS.md` | 无(该宿主不开放拦截钩子) | 建议 + git 兜底 |
+| `cursor` | `AGENTS.md` | 无 | 建议 + git 兜底 |
+| `claude` | `CLAUDE.md` | `.claude/settings.json` PreToolUse | **强制**(pre-tool + git) |
+
+只有 `claude` 能落地工具级“动手前拦截”;`codex` / `cursor` 依赖 `AGENTS.md` 建议 + git pre-commit 兜底。所选宿主记录在 `.agent-os/host.json`。安装(`--host`)对照当前锁定的 Mission IR 做硬拦截:
+
+- **PreToolUse 钩子**(写入项目 `.claude/settings.json`)：Claude Code 在执行 `Write / Edit / MultiEdit / NotebookEdit / Bash` 前调用 `hooks/pre_tool_use.py`，读取活动意图指针后调用 `execution-gate`：
+  - `blocked`(如只读/诊断任务里写文件)→ `deny`，直接阻止
+  - `requires-approval`(缺验证计划、置信度不足、高风险)→ `ask`，强制用户确认
+  - `allowed` → 放行，交回 Claude Code 正常权限流程
+- **git pre-commit 钩子**(写入 `.git/hooks/pre-commit`)：与宿主无关的最后防线，只读/诊断意图下的提交会被拒绝。
+
+活动意图指针 `memory/active-intent.json` 由运行时在 `upsert_intent_state` 时自动刷新(覆盖 `detect-intent`、`kernel-step`、`run` 等所有入口)，记录当前 `project` 与 `intent_id`。它是本地运行态，已被忽略，不应提交。
+
+钩子行为由环境变量 `AGENT_OS_HOOK_MODE` 控制：
+
+- `enforce`(默认)：按上表拦截
+- `monitor`：只在 stderr 提示，不阻断(灰度接入用)
+- `off`：完全放行
+
+任何内部错误一律 fail-open 放行，避免锁死编辑器；无活动意图(Agent OS 未介入本会话)时同样放行。`uninstall` 会一并清理这两个钩子。
+
 ## 常用命令
 
 产品 CLI：
@@ -142,7 +170,7 @@ runtime-release-check -> agent-os release-check
 
 它负责：
 
-- `Agent OS: Inject Workspace`：把当前仓库安装成 Agent OS 工作区
+- `Agent OS: Inject Workspace`：把当前仓库安装成 Agent OS 工作区。面板「操作」卡提供宿主 radio(Codex 默认 / Cursor / Claude),注入时按所选宿主生成入口文件与钩子;已安装时显示当前宿主与强制等级
 - `Agent OS: Refresh Status`：运行 doctor / runtime-summary / protocol 并刷新状态
 - `Agent OS: Open Overview`：生成并打开 `docs/agent-os/dashboard.html`
 

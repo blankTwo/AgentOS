@@ -613,22 +613,34 @@ async function readJsonWithRunner(pythonRunner, args, cwd) {
   return JSON.parse(result.stdout);
 }
 
-async function installWorkspace(context) {
+async function installWorkspace(context, host) {
   const root = workspaceRoot();
   if (!root) {
     vscode.window.showWarningMessage("Open a workspace before injecting Agent OS.");
     return;
   }
-  const rootAgents = path.join(root, "AGENTS.md");
-  const hadRootAgents = fileExists(rootAgents);
+  // 宿主决定入口文件与强制能力,面板 radio 未选时默认 codex
+  const selectedHost = HOST_CHOICES.includes(host) ? host : "codex";
+  const entryName = selectedHost === "claude" ? "CLAUDE.md" : "AGENTS.md";
+  const rootEntry = path.join(root, entryName);
+  const hadRootEntry = fileExists(rootEntry);
   const pythonRunner = await resolvePythonRunner(context);
   let result;
   if (pythonRunner) {
     runtimeMode = pythonRunner.mode;
     const installer = coreScript(context);
-    result = await pythonRunner.run([installer, "install", "--target", root, "--force"], repoRoot(context));
+    result = await pythonRunner.run(
+      [installer, "install", "--target", root, "--force", "--host", selectedHost],
+      repoRoot(context),
+    );
   } else {
     runtimeMode = "local-js";
+    // 本地 JS 兜底暂不支持宿主分流,claude 的强制钩子需 Python 运行时
+    if (selectedHost !== "codex") {
+      getOutputChannel(context).appendLine(
+        `[Agent OS] 本地 JS 运行时暂不支持 host=${selectedHost},已按内置流程注入;如需 ${selectedHost} 专属集成请安装 Python。`,
+      );
+    }
     result = localRuntime.install(localRuntimeContext(context, root), { force: true });
   }
   if (result.code !== 0) {
@@ -640,29 +652,39 @@ async function installWorkspace(context) {
   }
   const meta = {
     installedBy: "agent-os-vscode-plugin",
-    rootAgentsCreated: !hadRootAgents,
+    host: selectedHost,
+    rootAgentsCreated: !hadRootEntry,
     installedAt: new Date().toISOString(),
     runtimeMode,
   };
   fs.writeFileSync(installMetaPath(root), JSON.stringify(meta, null, 2), "utf-8");
-  vscode.window.showInformationMessage("Agent OS workspace injected.");
+  vscode.window.showInformationMessage(`Agent OS 已注入(宿主：${selectedHost})。`);
   if (statusProvider) {
     await statusProvider.refresh();
   }
 }
 
+// 支持的宿主;radio 未选或非法时回退 codex
+const HOST_CHOICES = ["codex", "cursor", "claude"];
+
 function rootAgentsLooksGenerated(root) {
-  const rootAgents = path.join(root, "AGENTS.md");
-  if (!fileExists(rootAgents)) {
-    return false;
-  }
-  const content = fs.readFileSync(rootAgents, "utf-8");
+  // 宿主不同入口文件名不同(AGENTS.md / CLAUDE.md),任一命中即视为由本插件生成
   const requiredMarkers = [
     "# Project Agent Entry",
     "This project uses Agent OS from `.agent-os/`.",
     "Project-specific rules can be added below this line.",
   ];
-  return requiredMarkers.every((marker) => content.includes(marker));
+  for (const entryName of ["AGENTS.md", "CLAUDE.md"]) {
+    const rootEntry = path.join(root, entryName);
+    if (!fileExists(rootEntry)) {
+      continue;
+    }
+    const content = fs.readFileSync(rootEntry, "utf-8");
+    if (requiredMarkers.every((marker) => content.includes(marker))) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function readInstallMeta(root) {
@@ -674,6 +696,18 @@ function readInstallMeta(root) {
     return JSON.parse(fs.readFileSync(metaPath, "utf-8"));
   } catch {
     return {};
+  }
+}
+
+function readHostMarker(root) {
+  const markerPath = path.join(root, ".agent-os", "host.json");
+  if (!fileExists(markerPath)) {
+    return null;
+  }
+  try {
+    return JSON.parse(fs.readFileSync(markerPath, "utf-8"));
+  } catch {
+    return null;
   }
 }
 
@@ -754,6 +788,7 @@ async function loadStatus(context) {
   const status = {
     installed,
     root,
+    host: readHostMarker(root),
     agentOsScript: agentOsScript(root),
     project: path.basename(root),
     doctor: null,
@@ -902,6 +937,8 @@ function renderStatusHtml(status) {
       button.danger { background: var(--vscode-inputValidation-errorBackground); color: var(--vscode-inputValidation-errorForeground); border-color: var(--vscode-inputValidation-errorBorder); }
       button:disabled { opacity: 0.65; cursor: wait; }
       .notice { margin-top: 10px; color: var(--vscode-descriptionForeground); min-height: 18px; }
+      .host-select { margin: 6px 0 10px; display: flex; flex-direction: column; gap: 4px; }
+      .host-select label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
     </style>
   </head>
   <body>
@@ -935,6 +972,15 @@ function renderStatusHtml(status) {
     <div class="card" style="margin-top:12px;">
       <div class="muted">操作</div>
       <p>可以使用命令面板，也可以直接点击下面的操作。</p>
+      ${status.installed
+        ? `<div class="muted">当前宿主：<b>${escapeHtml((status.host && status.host.host) || "未知")}</b>（强制等级：${escapeHtml((status.host && status.host.enforcement) || "-")}）</div>`
+        : `<div class="host-select">
+             <div class="muted">选择宿主（注入时生效）</div>
+             <label><input type="radio" name="agentOsHost" value="codex" checked> Codex（默认，建议 + git 兜底）</label>
+             <label><input type="radio" name="agentOsHost" value="cursor"> Cursor（建议 + git 兜底）</label>
+             <label><input type="radio" name="agentOsHost" value="claude"> Claude（工具级强制拦截）</label>
+           </div>`
+      }
       <div class="button-row">
         ${status.installed
           ? '<button class="danger" data-command="agentOs.uninstallWorkspace" data-busy="正在卸载...">卸载工作区</button>'
@@ -959,7 +1005,14 @@ function renderStatusHtml(status) {
         button.addEventListener("click", () => {
           updateButtonBusyState(button, true);
           notice.textContent = button.textContent;
-          vscode.postMessage({ command: button.dataset.command });
+          const payload = { command: button.dataset.command };
+          if (button.dataset.command === "agentOs.injectWorkspace") {
+            const picked = document.querySelector('input[name="agentOsHost"]:checked');
+            if (picked) {
+              payload.host = picked.value;
+            }
+          }
+          vscode.postMessage(payload);
         });
       });
     </script>
@@ -1235,7 +1288,8 @@ function createStatusProvider(context) {
         }
         lastStatusMessage = "处理中...";
         try {
-          await vscode.commands.executeCommand(message.command);
+          // 注入时把面板 radio 选中的宿主一并传给命令
+          await vscode.commands.executeCommand(message.command, message.host);
           lastStatusMessage = "操作完成。";
         } catch (error) {
           lastStatusMessage = `操作失败：${error.message}`;
@@ -1251,7 +1305,7 @@ function createStatusProvider(context) {
 
 function registerCommands(context) {
   context.subscriptions.push(
-    vscode.commands.registerCommand("agentOs.injectWorkspace", () => installWorkspace(context)),
+    vscode.commands.registerCommand("agentOs.injectWorkspace", (host) => installWorkspace(context, host)),
     vscode.commands.registerCommand("agentOs.uninstallWorkspace", () => uninstallWorkspace(context)),
     vscode.commands.registerCommand("agentOs.refreshStatus", async () => {
       const status = await loadStatus(context);

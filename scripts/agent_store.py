@@ -19,9 +19,18 @@ PROJECT_MEMORY_DIR = ROOT / "memory" / "projects"
 
 def connect(db_path: Path = DEFAULT_DB) -> sqlite3.Connection:
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db_path)
+    # timeout 让并发写在锁竞争时排队而非立即抛错,支撑多 Agent / 钩子并发访问
+    conn = sqlite3.connect(db_path, timeout=30.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    # WAL 允许读写并发,配合 busy_timeout 降低 PreToolUse / pre-commit 钩子
+    # 与运行时同时访问时的 "database is locked" 概率;内存库不支持 WAL,自动跳过
+    if str(db_path) != ":memory:":
+        try:
+            conn.execute("PRAGMA journal_mode = WAL")
+            conn.execute("PRAGMA busy_timeout = 30000")
+        except sqlite3.Error:
+            pass
     return conn
 
 

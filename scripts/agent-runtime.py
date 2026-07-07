@@ -1539,6 +1539,48 @@ def intent_state_from_context(context: Dict[str, Any], *, goal_id: Optional[str]
     }
 
 
+def active_intent_pointer_path(conn) -> Optional[Path]:
+    """定位与当前 SQLite 库同目录的活动意图指针文件 active-intent.json。"""
+    try:
+        for row in conn.execute("PRAGMA database_list").fetchall():
+            name = row["name"] if isinstance(row, sqlite3.Row) else row[1]
+            file = row["file"] if isinstance(row, sqlite3.Row) else row[2]
+            if name == "main" and file:
+                return Path(file).resolve().parent / "active-intent.json"
+    except sqlite3.Error:
+        return None
+    return None
+
+
+def write_active_intent_pointer(conn, state: Dict[str, Any]) -> None:
+    """把最近锁定/更新的意图写成指针,供 PreToolUse / pre-commit 钩子读取。
+
+    这是执行门控"控制反转"的落点:钩子(PEP)无需理解项目 slug、也无需
+    重新编译,只要读取该指针拿到 project 与 intent_id,即可对照 Locked
+    Mission IR 调用 execution-gate 做硬门校验。指针是尽力而为,写失败不影响
+    运行时主流程(git pre-commit 仍是与宿主无关的最后防线)。
+    """
+    pointer = active_intent_pointer_path(conn)
+    if pointer is None:
+        return
+    payload = {
+        "project": state["project"],
+        "intent_id": state["id"],
+        "intent_type": state["intent_type"],
+        "mutation_authorization": state["mutation_authorization"],
+        "risk_level": state.get("risk_level"),
+        "approved_scope": state.get("approved_scope"),
+    }
+    try:
+        pointer.parent.mkdir(parents=True, exist_ok=True)
+        pointer.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+    except OSError:
+        pass
+
+
 def upsert_intent_state(conn, state: Dict[str, Any]) -> str:
     conn.execute(
         """
@@ -1588,6 +1630,8 @@ def upsert_intent_state(conn, state: Dict[str, Any]) -> str:
             state.get("compiler_metadata_json"),
         ),
     )
+    # 同步刷新活动意图指针,让外层 PEP 钩子始终对照最新锁定的 Mission IR
+    write_active_intent_pointer(conn, state)
     return state["id"]
 
 

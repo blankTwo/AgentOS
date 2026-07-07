@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import shutil
 import subprocess
@@ -59,7 +60,61 @@ EXCLUDE_PATTERNS = (
     "memory/index.db",
     "memory/index.db-shm",
     "memory/index.db-wal",
+    "memory/active-intent.json",
 )
+
+# 执行门控钩子(PEP)配置
+CLAUDE_HOOK_MATCHER = "Write|Edit|MultiEdit|NotebookEdit|Bash"
+CLAUDE_HOOK_MARKER = "pre_tool_use.py"  # 用于幂等识别已安装的钩子
+PRECOMMIT_MARKER = "Agent OS managed pre-commit"
+
+# 宿主(host)配置:不同宿主读取不同入口文件、支持不同强制能力
+HOST_CHOICES = ("codex", "cursor", "claude")
+# 强制等级:仅 Claude Code 提供工具级拦截钩子;codex/cursor 只能建议 + git 兜底
+ENFORCEMENT_BY_HOST = {
+    "claude": "enforced(pre-tool+git)",
+    "codex": "advisory(AGENTS.md)+git",
+    "cursor": "advisory(AGENTS.md)+git",
+}
+# Claude Code 原生入口 CLAUDE.md 的附加说明(点明钩子已生效)
+CLAUDE_ENTRY_NOTE = (
+    "\n> Claude Code:PreToolUse 与 git pre-commit 钩子已生效，"
+    "只读/诊断任务下的写操作与提交会被强制拦截。\n"
+)
+
+
+def entry_filename_for_host(host: str) -> str:
+    """返回宿主读取的项目根入口文件名。"""
+    return "CLAUDE.md" if host == "claude" else "AGENTS.md"
+
+
+def entry_template_for_host(host: str) -> str:
+    """生成宿主对应的入口文件内容;Claude 使用原生 CLAUDE.md 并追加钩子说明。"""
+    if host != "claude":
+        return PROJECT_AGENTS_TEMPLATE
+    text = PROJECT_AGENTS_TEMPLATE.replace(
+        "This root `AGENTS.md` is the project bootstrap entry.",
+        "This root `CLAUDE.md` is the project bootstrap entry.",
+    )
+    return text.replace("# Project Agent Entry\n", "# Project Agent Entry\n" + CLAUDE_ENTRY_NOTE, 1)
+
+
+def managed_ignore_entries_for_host(host: str) -> Tuple[str, ...]:
+    """按宿主返回需本地忽略的入口文件 + .agent-os/ 目录。"""
+    return (entry_filename_for_host(host), ".agent-os/")
+
+
+def write_host_marker(agent_os_dir: Path, host: str) -> None:
+    """记录所选宿主与强制等级,供插件面板 / doctor 展示。"""
+    marker = agent_os_dir / "host.json"
+    marker.write_text(
+        json.dumps(
+            {"host": host, "enforcement": ENFORCEMENT_BY_HOST.get(host, "advisory(AGENTS.md)+git")},
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
 
 
 def should_skip(path: Path, target_agent_os: Optional[Path] = None) -> bool:
@@ -152,11 +207,106 @@ def copy_agent_os(target_agent_os: Path, dry_run: bool = False) -> List[str]:
     return actions
 
 
+def install_claude_hook(target: Path, agent_os_dir: Path, dry_run: bool) -> str:
+    """把 PreToolUse 钩子(PEP)合并进项目 .claude/settings.json,幂等且不覆盖已有配置。"""
+    settings_path = target / ".claude" / "settings.json"
+    hook_cmd = f'"{sys.executable}" "{agent_os_dir / "hooks" / "pre_tool_use.py"}"'
+    data: Dict[str, Any] = {}
+    if settings_path.exists():
+        try:
+            data = json.loads(settings_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return f"skip .claude/settings.json(无法解析,请手动配置 PreToolUse 钩子)-> {settings_path}"
+    hooks = data.setdefault("hooks", {})
+    pre_tool_use = hooks.setdefault("PreToolUse", [])
+    for entry in pre_tool_use:
+        for hook in entry.get("hooks", []):
+            if CLAUDE_HOOK_MARKER in str(hook.get("command", "")):
+                return f"Claude PreToolUse 钩子已存在 -> {settings_path}"
+    pre_tool_use.append(
+        {
+            "matcher": CLAUDE_HOOK_MATCHER,
+            "hooks": [{"type": "command", "command": hook_cmd}],
+        }
+    )
+    if not dry_run:
+        settings_path.parent.mkdir(parents=True, exist_ok=True)
+        settings_path.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+    return f"install Claude PreToolUse 钩子 -> {settings_path}"
+
+
+def remove_claude_hook(target: Path) -> str:
+    """从 .claude/settings.json 移除 Agent OS 安装的 PreToolUse 钩子条目。"""
+    settings_path = target / ".claude" / "settings.json"
+    if not settings_path.exists():
+        return f".claude/settings.json 不存在 -> {settings_path}"
+    try:
+        data = json.loads(settings_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return f"skip .claude/settings.json(无法解析)-> {settings_path}"
+    pre_tool_use = data.get("hooks", {}).get("PreToolUse")
+    if not isinstance(pre_tool_use, list):
+        return f"未发现 Agent OS PreToolUse 钩子 -> {settings_path}"
+    kept = [
+        entry
+        for entry in pre_tool_use
+        if not any(CLAUDE_HOOK_MARKER in str(h.get("command", "")) for h in entry.get("hooks", []))
+    ]
+    if len(kept) == len(pre_tool_use):
+        return f"未发现 Agent OS PreToolUse 钩子 -> {settings_path}"
+    data["hooks"]["PreToolUse"] = kept
+    settings_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    return f"remove Claude PreToolUse 钩子 -> {settings_path}"
+
+
+def install_git_precommit(target: Path, agent_os_dir: Path, dry_run: bool) -> str:
+    """安装 git pre-commit 钩子作为与宿主无关的最后防线;不覆盖已有的非 Agent OS 钩子。"""
+    git_dir = git_dir_for(target)
+    if git_dir is None:
+        return "skip git pre-commit(非 git 仓库)"
+    dest = git_dir / "hooks" / "pre-commit"
+    if dest.exists():
+        existing = dest.read_text(encoding="utf-8", errors="ignore")
+        if PRECOMMIT_MARKER not in existing:
+            return f"skip git pre-commit(已存在非 Agent OS 钩子,请手动整合)-> {dest}"
+    if not dry_run:
+        source = agent_os_dir / "hooks" / "pre-commit"
+        if not source.exists():
+            return f"skip git pre-commit(缺少钩子源文件)-> {source}"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, dest)
+        try:
+            dest.chmod(0o755)
+        except OSError:
+            pass
+    return f"install git pre-commit 钩子 -> {dest}"
+
+
+def remove_git_precommit(target: Path) -> str:
+    """仅当 pre-commit 是 Agent OS 安装的时才删除。"""
+    git_dir = git_dir_for(target)
+    if git_dir is None:
+        return "skip git pre-commit 清理(非 git 仓库)"
+    dest = git_dir / "hooks" / "pre-commit"
+    if not dest.exists():
+        return f"git pre-commit 钩子不存在 -> {dest}"
+    existing = dest.read_text(encoding="utf-8", errors="ignore")
+    if PRECOMMIT_MARKER not in existing:
+        return f"skip git pre-commit 清理(非 Agent OS 钩子)-> {dest}"
+    dest.unlink()
+    return f"remove git pre-commit 钩子 -> {dest}"
+
+
 def cmd_install(args: argparse.Namespace) -> int:
     target = args.target.resolve()
     agent_os_dir = target / ".agent-os"
-    root_agents = target / "AGENTS.md"
+    host = getattr(args, "host", "codex") or "codex"
+    entry_name = entry_filename_for_host(host)
+    root_entry = target / entry_name
     actions: List[str] = []
+    actions.append(f"host = {host}({ENFORCEMENT_BY_HOST.get(host, 'advisory')})")
     if not target.exists():
         if args.dry_run:
             actions.append(f"create target directory {target}")
@@ -167,18 +317,19 @@ def cmd_install(args: argparse.Namespace) -> int:
         print("Use --force to overwrite/update .agent-os.", file=sys.stderr)
         return 2
     actions.extend(copy_agent_os(agent_os_dir, dry_run=args.dry_run))
-    actions.append(f"write root AGENTS.md -> {root_agents}")
+    actions.append(f"write root {entry_name} -> {root_entry}")
     if not args.dry_run:
-        if root_agents.exists() and not args.force:
-            print(f"Root AGENTS.md already exists: {root_agents}", file=sys.stderr)
+        if root_entry.exists() and not args.force:
+            print(f"Root {entry_name} already exists: {root_entry}", file=sys.stderr)
             print("Use --force to overwrite it.", file=sys.stderr)
             return 2
-        root_agents.write_text(PROJECT_AGENTS_TEMPLATE, encoding="utf-8")
+        root_entry.write_text(entry_template_for_host(host), encoding="utf-8")
     memory_dir = agent_os_dir / "memory"
     actions.append(f"initialize memory directory -> {memory_dir}")
     if not args.dry_run:
         memory_dir.mkdir(parents=True, exist_ok=True)
-        _, action = update_managed_ignore_file(target, GIT_EXCLUDE_ENTRIES)
+        write_host_marker(agent_os_dir, host)
+        _, action = update_managed_ignore_file(target, managed_ignore_entries_for_host(host))
         actions.append(action)
         subprocess.run(
             [sys.executable, str(agent_os_dir / "scripts" / "agent-runtime.py"), "runtime-migrate", "--db", str(agent_os_dir / "memory" / "index.db")],
@@ -189,6 +340,14 @@ def cmd_install(args: argparse.Namespace) -> int:
         )
     elif target.exists():
         actions.append("skip local ignore update (dry run)")
+    # 安装执行门控钩子(PEP):仅 Claude Code 支持工具级拦截;git pre-commit 对所有宿主兜底
+    if host == "claude":
+        actions.append(install_claude_hook(target, agent_os_dir, args.dry_run))
+    else:
+        actions.append(
+            f"skip Claude PreToolUse 钩子(host={host} 无工具级拦截,使用 {entry_name} 建议 + git 兜底)"
+        )
+    actions.append(install_git_precommit(target, agent_os_dir, args.dry_run))
     print("\n".join(actions))
     return 0
 
@@ -196,7 +355,6 @@ def cmd_install(args: argparse.Namespace) -> int:
 def cmd_uninstall(args: argparse.Namespace) -> int:
     target = args.target.resolve()
     agent_os_dir = target / ".agent-os"
-    root_agents = target / "AGENTS.md"
     actions: List[str] = []
     if not target.exists():
         print(f"Target directory does not exist: {target}", file=sys.stderr)
@@ -206,10 +364,16 @@ def cmd_uninstall(args: argparse.Namespace) -> int:
     else:
         _, action = remove_managed_ignore_file(target)
         actions.append(action)
+        # 一并清理执行门控钩子
+        actions.append(remove_claude_hook(target))
+        actions.append(remove_git_precommit(target))
     if args.remove_root_agents:
-        actions.append(f"remove root AGENTS.md -> {root_agents}")
-        if not args.dry_run and root_agents.exists():
-            root_agents.unlink()
+        # 宿主不同入口文件名不同(AGENTS.md / CLAUDE.md),两者都清理
+        for entry_name in ("AGENTS.md", "CLAUDE.md"):
+            root_entry = target / entry_name
+            actions.append(f"remove root {entry_name} -> {root_entry}")
+            if not args.dry_run and root_entry.exists():
+                root_entry.unlink()
     if agent_os_dir.exists():
         actions.append(f"remove Agent OS directory -> {agent_os_dir}")
         if not args.dry_run:
@@ -259,6 +423,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     install = subparsers.add_parser("install", help="Install Agent OS into a user project")
     install.add_argument("--target", type=Path, required=True)
+    install.add_argument(
+        "--host",
+        choices=HOST_CHOICES,
+        default="codex",
+        help="目标宿主:codex/cursor 生成 AGENTS.md(建议+git 兜底);claude 生成 CLAUDE.md + PreToolUse 强制钩子",
+    )
     install.add_argument("--force", action="store_true")
     install.add_argument("--dry-run", action="store_true")
     install.set_defaults(func=cmd_install)

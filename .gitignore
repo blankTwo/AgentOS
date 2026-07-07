@@ -7,6 +7,7 @@ memory/index.db
 memory/index.db-*
 memory/*.sqlite
 memory/*.sqlite-*
+memory/active-intent.json
 
 # Runtime/session artifacts
 sessions/
