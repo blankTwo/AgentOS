@@ -13,6 +13,10 @@ let runtimeMode = "python";
 
 const INTENT_COMPILER_SECRET_KEY = "agentOS.intentCompiler.apiKey";
 
+function timestamp() {
+  return new Date().toISOString();
+}
+
 function workspaceRoot() {
   const folder = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
   return folder ? folder.uri.fsPath : null;
@@ -55,6 +59,97 @@ function fileExists(filePath) {
 
 function workspaceAgentOsDir(root) {
   return path.join(root, ".agent-os");
+}
+
+function safeUrlForLog(value) {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return "";
+  }
+  try {
+    const parsed = new URL(raw);
+    return `${parsed.protocol}//${parsed.host}${parsed.pathname}`.replace(/\/+$/, "");
+  } catch {
+    return raw.replace(/[?#].*$/, "").replace(/\/+$/, "");
+  }
+}
+
+function logIntentCompiler(context, message, details = {}) {
+  const channel = getOutputChannel(context);
+  channel.appendLine(`[${timestamp()}] [Intent Compiler] ${message}`);
+  const labels = {
+    project: "项目",
+    runtimeMode: "运行时",
+    compilerMode: "编译模式",
+    provider: "服务商",
+    model: "模型",
+    baseUrl: "Base URL",
+    script: "脚本",
+    hasApiKey: "API Key",
+    hasBaseUrl: "Base URL",
+    hasModel: "模型",
+    status: "HTTP 状态",
+    latency_ms: "耗时",
+    error: "错误",
+    exitCode: "退出码",
+    ok: "结果",
+    locked: "锁定状态",
+    fallback: "回退",
+    source: "来源",
+    missionType: "任务类型",
+    missionMode: "任务模式",
+  };
+  const values = Object.entries(details)
+    .filter(([, value]) => value !== undefined && value !== null && value !== "")
+    .map(([key, value]) => {
+      let displayValue = value;
+      if (typeof value === "boolean") {
+        displayValue = value ? "是" : "否";
+      }
+      if (key === "latency_ms") {
+        displayValue = `${value}ms`;
+      }
+      return `${labels[key] || key}：${displayValue}`;
+    });
+  if (values.length > 0) {
+    channel.appendLine(`  ${values.join("；")}`);
+  }
+}
+
+function formatListForLog(value) {
+  if (!Array.isArray(value) || value.length === 0) {
+    return "无";
+  }
+  return value.map((item) => String(item)).join("、");
+}
+
+function formatConstraintsForLog(constraints = {}) {
+  const items = [];
+  items.push(`只读：${constraints.readonly ? "是" : "否"}`);
+  items.push(`允许写入：${constraints.allowWrite ? "是" : "否"}`);
+  items.push(`允许提交：${constraints.allowCommit ? "是" : "否"}`);
+  items.push(`允许部署：${constraints.allowDeploy ? "是" : "否"}`);
+  items.push(`写入前需确认：${constraints.requireApprovalBeforeMutation ? "是" : "否"}`);
+  return items.join("；");
+}
+
+function logMissionBreakdown(context, missionIr = {}) {
+  const channel = getOutputChannel(context);
+  const mission = missionIr.mission || {};
+  const intent = missionIr.intent || {};
+  const constraints = missionIr.constraints || {};
+  const scope = missionIr.scope || {};
+  const evidence = missionIr.evidenceRequirements || {};
+  const source = missionIr.source || {};
+  channel.appendLine(`[${timestamp()}] [Intent Compiler] 意图拆解结果：`);
+  channel.appendLine(`  任务：${mission.type || "未知"}；模式：${mission.mode || "未知"}；主意图：${intent.primary || "未知"}；置信度：${intent.confidence ?? "未知"}；歧义：${intent.ambiguity || "未知"}`);
+  channel.appendLine(`  权限约束：${formatConstraintsForLog(constraints)}`);
+  channel.appendLine(`  影响范围：项目=${scope.targetProject || "未知"}；层=${formatListForLog(scope.affectedLayers)}；疑似文件=${formatListForLog(scope.suspectedFiles)}`);
+  channel.appendLine(`  交付物：${formatListForLog(missionIr.deliverables)}`);
+  channel.appendLine(`  成功标准：${formatListForLog(missionIr.successCriteria)}`);
+  channel.appendLine(`  证据要求：需要证据=${evidence.required ? "是" : "否"}；类型=${formatListForLog(evidence.types)}；行动前最少证据=${evidence.minimumBeforeAction ?? 0}`);
+  channel.appendLine(`  澄清问题：${formatListForLog(missionIr.clarification)}`);
+  channel.appendLine(`  来源：${source.compiler || "未知"}；回退：${source.fallback ? "是" : "否"}`);
 }
 
 function intentCompilerConfig() {
@@ -250,7 +345,18 @@ async function testIntentCompilerConnection(context, overrides = {}) {
   const baseUrl = String(overrides.baseUrl || current.baseUrl || "").trim();
   const apiKey = String(overrides.apiKey || (await context.secrets.get(INTENT_COMPILER_SECRET_KEY)) || "").trim();
   const model = String(overrides.model || current.model || "").trim();
+  logIntentCompiler(context, "开始测试 LLM 连接。", {
+    provider,
+    model,
+    baseUrl: safeUrlForLog(baseUrl),
+    hasApiKey: Boolean(apiKey),
+  });
   if (!baseUrl || !apiKey || !model) {
+    logIntentCompiler(context, "测试未发起：配置不完整。", {
+      hasBaseUrl: Boolean(baseUrl),
+      hasApiKey: Boolean(apiKey),
+      hasModel: Boolean(model),
+    });
     return {
       ok: false,
       error: "请先填写 provider、baseUrl、API Key 和 model。",
@@ -258,6 +364,7 @@ async function testIntentCompilerConnection(context, overrides = {}) {
   }
   const url = buildIntentCompilerTestUrl(provider, baseUrl, model);
   if (!url) {
+    logIntentCompiler(context, "测试未发起：无法构建请求地址。", { provider, baseUrl: safeUrlForLog(baseUrl), model });
     return {
       ok: false,
       error: "无法构建测试请求地址。",
@@ -276,6 +383,12 @@ async function testIntentCompilerConnection(context, overrides = {}) {
     const text = await response.text();
     const latencyMs = Date.now() - startedAt;
     if (!response.ok) {
+      logIntentCompiler(context, "LLM 连接测试失败。", {
+        provider,
+        model,
+        status: response.status,
+        latency_ms: latencyMs,
+      });
       return {
         ok: false,
         provider,
@@ -298,6 +411,12 @@ async function testIntentCompilerConnection(context, overrides = {}) {
     } catch {
       preview = text.slice(0, 200) || "已收到响应";
     }
+    logIntentCompiler(context, "LLM 连接测试成功。", {
+      provider,
+      model,
+      status: response.status,
+      latency_ms: latencyMs,
+    });
     return {
       ok: true,
       provider,
@@ -307,6 +426,11 @@ async function testIntentCompilerConnection(context, overrides = {}) {
       preview,
     };
   } catch (error) {
+    logIntentCompiler(context, "LLM 连接测试异常。", {
+      provider,
+      model,
+      error: error.name === "AbortError" ? "测试超时。" : error.message,
+    });
     return {
       ok: false,
       provider,
@@ -348,6 +472,9 @@ async function compileMissionWithRuntime(context, requestText, options = {}) {
   const apiKey = await context.secrets.get(INTENT_COMPILER_SECRET_KEY);
   const pythonRunner = await resolvePythonRunner(context);
   if (!pythonRunner) {
+    logIntentCompiler(context, "Mission IR 编译未启动：没有可用 Python 运行时，回退本地规则。", {
+      project: root ? path.basename(root) : "intent-compiler-test",
+    });
     return { ok: false, fallback: true, error: "当前环境没有可用 Python 运行时。" };
   }
   const projectName = options.projectName || (root ? path.basename(root) : "intent-compiler-test");
@@ -363,6 +490,16 @@ async function compileMissionWithRuntime(context, requestText, options = {}) {
     requestText,
   ];
   const envExtra = {};
+  const llmReady = Boolean(config.enabled && config.baseUrl && config.model && apiKey);
+  logIntentCompiler(context, "开始编译 Mission IR。", {
+    project: projectName,
+    runtimeMode: pythonRunner.mode,
+    compilerMode: llmReady ? "llm" : "builtin-rules",
+    provider: llmReady ? config.provider || "custom" : undefined,
+    model: llmReady ? config.model : undefined,
+    baseUrl: llmReady ? safeUrlForLog(config.baseUrl) : undefined,
+    script,
+  });
   if (config.enabled && config.baseUrl && config.model && apiKey) {
     args.push("--provider", config.provider || "custom");
     args.push("--base-url", config.baseUrl);
@@ -372,6 +509,11 @@ async function compileMissionWithRuntime(context, requestText, options = {}) {
   const cwd = root || repoRoot(context);
   const result = await pythonRunner.run(args, cwd, envExtra);
   if (result.code !== 0) {
+    logIntentCompiler(context, "Mission IR 编译失败，Runtime 返回非 0。", {
+      project: projectName,
+      exitCode: result.code,
+      compilerMode: llmReady ? "llm" : "builtin-rules",
+    });
     return {
       ok: false,
       fallback: true,
@@ -379,8 +521,26 @@ async function compileMissionWithRuntime(context, requestText, options = {}) {
     };
   }
   try {
-    return JSON.parse(result.stdout);
+    const parsed = JSON.parse(result.stdout);
+    const mission = parsed.mission_ir?.mission || {};
+    logIntentCompiler(context, "Mission IR 编译完成。", {
+      project: projectName,
+      ok: parsed.ok,
+      locked: parsed.locked,
+      compilerMode: llmReady ? "llm" : "builtin-rules",
+      fallback: parsed.compiler_metadata?.fallback,
+      source: parsed.mission_ir?.source?.compiler,
+      missionType: mission.type,
+      missionMode: mission.mode,
+    });
+    logMissionBreakdown(context, parsed.mission_ir || {});
+    return parsed;
   } catch (error) {
+    logIntentCompiler(context, "Mission IR 编译失败：Runtime 输出不是合法 JSON。", {
+      project: projectName,
+      compilerMode: llmReady ? "llm" : "builtin-rules",
+      error: error.message,
+    });
     return { ok: false, fallback: true, error: `Runtime 未返回合法 JSON：${error.message}`, raw: result.stdout };
   }
 }
