@@ -128,7 +128,9 @@ If required SQLite recording cannot run, final response must include:
 
 ## Memory Recorder Sub-Agent
 
-For complex tasks, memory writing can be delegated to a Memory Recorder sub-agent.
+For complex tasks, memory writing should be delegated to a Memory Recorder sub-agent when it would slow the main execution path and the environment supports sub-agents.
+
+The main agent owns the Memory Gate decision, factual summary, sensitivity judgment, and final verification. The Memory Recorder sub-agent owns only the memory-writing execution.
 
 Provide:
 - project slug
@@ -140,6 +142,8 @@ Provide:
 - exact SQLite commands
 
 The sub-agent may update memory and run `memory-tools.py`; it must not modify business code, rules, skills, or AGENTS.
+
+The main agent should continue validation, review, or final-response preparation while the Memory Recorder sub-agent runs. Before final response, the main agent must verify that memory was recorded or provide the exact backfill command.
 
 ---
 

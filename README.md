@@ -62,6 +62,7 @@ python <your-project>/.agent-os/scripts/agent-os.py version --root <your-project
 | Agent Runtime | 记录 goal、task、policy、intent、action、feedback、verification、recovery、trace |
 | Documentation Gate | 判断 README or docs、`docs/agent-os/`、memory 是否需要同步 |
 | Memory Gate | 把可复用经验写入 Markdown memory / SQLite memory |
+| Recorder Sub-Agents | 文档和记忆落盘可由专门子 Agent 执行，主 Agent 负责判断、事实输入和验收 |
 | Evolution Policy | 只记录候选升级，不自动修改 rules / skills / AGENTS |
 
 核心目标不是“多写几个 skill”，而是让 AI Agent 在项目内按可验证、可回滚、可审查、尊重用户意图边界的方式工作。
@@ -204,6 +205,8 @@ docs/agent-os/
 Documentation Gate 要求：当安装、命令、行为、配置、API、部署、排错、规则或 workflow 变化时，必须更新 README or docs；如果不需要更新，最终回复要说明 why no documentation update was needed。
 
 Memory is not documentation. Runtime records are not documentation. Memory 和 Runtime 可以提供证据，但不能替代 README、项目 docs 或 `docs/agent-os/`。
+
+复杂任务中，文档和记忆写入不应该卡住主 Agent 的主线。主 Agent 负责判断 Documentation Gate / Memory Gate、整理确认事实、检查最终 diff 或记录结果；实际写 README/docs、`docs/agent-os/`、Markdown memory、SQLite memory 时，优先交给 `documentation-recorder` 或 `memory-recorder` 子 Agent。没有子 Agent 能力时，主 Agent 可以直接写，但最终需要说明原因。
 
 ## Memory
 

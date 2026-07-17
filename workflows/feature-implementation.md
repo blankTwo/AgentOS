@@ -20,12 +20,12 @@ Required plan:
 1. Detect current capability state: complete, partial, broken-chain, absent, or unconfirmed.
 2. Inspect existing patterns and adjacent implementations.
 3. Apply Language Context for docs, comments, UI copy, and project memory.
-4. If a durable implementation plan or task breakdown is needed, write it under `docs/agent-os/plans/` or `docs/agent-os/tasks/` in the user project.
+4. If a durable implementation plan or task breakdown is needed, delegate the write to a Documentation Recorder sub-agent when available; the target remains `docs/agent-os/plans/` or `docs/agent-os/tasks/` in the user project.
 5. Preserve existing contracts and user workflows unless a change is explicit.
 6. Implement the smallest complete capability chain.
 7. Validate the main path and key boundary.
-8. Run Documentation Gate: update README/docs, `docs/agent-os/`, or Agent OS docs when the feature changes usage, behavior, contracts, validation, or maintainability knowledge.
-9. Record feature or decision memory when reusable or project-specific.
+8. Run Documentation Gate: decide required README/docs, `docs/agent-os/`, or Agent OS docs updates; delegate documentation writing when available and review the diff before final response.
+9. Run Memory Gate: delegate feature or decision memory recording to a Memory Recorder sub-agent when reusable or project-specific memory is required.
 
 ## Rules
 

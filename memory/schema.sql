@@ -315,6 +315,7 @@ CREATE TABLE IF NOT EXISTS agent_tasks (
         'planner',
         'executor',
         'reviewer',
+        'documentation-recorder',
         'memory-recorder',
         'verifier'
     )),
@@ -586,6 +587,7 @@ CREATE TABLE IF NOT EXISTS subagent_runs (
         'executor',
         'reviewer',
         'verifier',
+        'documentation-recorder',
         'memory-recorder'
     )),
     status TEXT NOT NULL CHECK (status IN (
@@ -603,6 +605,7 @@ CREATE TABLE IF NOT EXISTS subagent_runs (
         'executor',
         'reviewer',
         'verifier',
+        'documentation-recorder',
         'memory-recorder'
     )),
     failure_type TEXT CHECK (failure_type IN (

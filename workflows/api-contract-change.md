@@ -22,12 +22,12 @@ Output a structured plan before implementation:
 2. Identify all callers and adapters.
 3. Define compatibility strategy.
 4. Apply Language Context for decision docs, comments, and business documentation.
-5. If the contract decision needs a durable project document, write it under `docs/agent-os/decisions/` in the user project.
+5. If the contract decision needs a durable project document, delegate the write to a Documentation Recorder sub-agent when available; the target remains `docs/agent-os/decisions/` in the user project.
 6. Modify server/client/data code in the narrowest scope.
 7. Preserve quota, billing, auth, and frontend behavior unless explicitly changed.
 8. Validate contract and main business path.
-9. Run Documentation Gate: update API docs, README, decision records, verification records, or migration notes when the contract, callers, compatibility, auth, quota, errors, or operational behavior changed.
-10. Record memory for contract decisions.
+9. Run Documentation Gate: decide required API docs, README, decision records, verification records, or migration notes updates; delegate documentation writing when available and review the diff before final response.
+10. Run Memory Gate: delegate contract decision memory recording to a Memory Recorder sub-agent when required.
 
 ## Rules
 

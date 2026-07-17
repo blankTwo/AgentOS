@@ -470,11 +470,36 @@ Documentation update is required when:
 
 Documentation may be skipped only when the change is self-evident, local, and does not affect usage, contracts, operations, decisions, or future maintenance. If skipped, state the reason briefly in the final response.
 
+Execution ownership:
+- The main agent owns the Documentation Gate decision, required facts, scope, and final verification.
+- For L2+ work, Agent OS behavior changes, cross-layer changes, or any task that already used sub-agents, documentation writing should be delegated to a Documentation Recorder sub-agent when the environment supports sub-agents.
+- The Documentation Recorder sub-agent receives only the confirmed facts, changed files, target docs, language choice, and validation evidence. It writes or updates documentation, then reports the changed paths and summary.
+- The main agent must not wait idly for documentation writing when other validation or review work can continue. Continue the main critical path while the sub-agent writes docs.
+- The main agent must review the documentation diff before final response and remains accountable for correctness.
+- If no sub-agent mechanism is available, the main agent may write the required documentation directly, but the final response should state that delegation was unavailable.
+
 Boundaries:
 - Documentation Gate does not replace Validation Gate or Memory Gate.
 - Memory is not documentation. A memory summary can preserve lessons, but README/docs/execution documents must still be updated when the user or future maintainers need readable instructions or records.
 - Runtime records are not documentation. They can support evidence, but they do not replace user project docs or Agent OS docs.
 - Do not write project documentation under `.agent-os/` unless it is Agent OS system documentation explicitly being upgraded.
+
+### Documentation Recorder Sub-Agent
+Use a Documentation Recorder sub-agent for documentation writing that would otherwise slow the main execution path.
+
+Use it for:
+- README, setup, usage, command, troubleshooting, or configuration updates
+- durable plans, task breakdowns, decisions, reviews, or verification records under `docs/agent-os/`
+- Agent OS docs, AGENTS, context, workflow, rule, tool, installer, or test documentation updates after Agent OS behavior changes
+- multi-file documentation updates after feature, API, runtime, or workflow changes
+
+Sub-agent boundaries:
+- Only documentation files and explicitly assigned documentation targets
+- No business code, runtime logic, tests, memory, rules, skills, or AGENTS changes unless that exact documentation target is explicitly assigned
+- No speculative content; use only confirmed facts from the main agent
+- Must report changed paths, summary, and any unresolved documentation gaps
+
+The main agent remains accountable for Documentation Gate completion and final user-visible claims.
 
 ### Memory Gate
 At task end, decide:
@@ -498,7 +523,7 @@ Run at least `record-session` when any of these are true:
 Also run `record-item` when the task produced reusable experience, implemented feature knowledge, a pitfall fix, an important decision, or a stable user preference.
 
 ### Memory Recorder Sub-Agent
-For complex tasks, memory writing may be delegated to a Memory Recorder sub-agent when it would slow the main delivery.
+For complex tasks, memory writing should be delegated to a Memory Recorder sub-agent when it would slow the main delivery and the environment supports sub-agents.
 
 Use it for:
 - large bugfix / feature / refactor work with clear conclusions
@@ -510,8 +535,15 @@ Sub-agent boundaries:
 - Only memory writing, SQLite recording, and candidate organization
 - No business code changes
 - No AGENTS/rules/skills changes unless explicitly requested
+- No documentation writing unless separately assigned as Documentation Recorder work
 - No unverified long-term memory
 - Must use factual summaries from the main agent
+
+Execution ownership:
+- The main agent owns the Memory Gate decision, factual summary, privacy/sensitivity judgment, and final verification.
+- The Memory Recorder sub-agent performs Markdown memory updates, SQLite `record-session`, SQLite `record-item`, and candidate organization.
+- The main agent should continue final validation, review, or response preparation while the sub-agent records memory.
+- The main agent must verify completion before final response. If the sub-agent cannot complete, include the exact backfill commands or state why memory was intentionally skipped.
 
 The main agent remains accountable for Memory Gate completion.
 

@@ -46,11 +46,11 @@ For non-trivial bugs, include:
    - recommended fix
    - risk and validation plan
    - whether approval is needed before changing files
-6. If fix is authorized and the diagnostic plan, review, or verification evidence needs a durable project document, write it under `docs/agent-os/plans/`, `docs/agent-os/reviews/`, or `docs/agent-os/verification/` in the user project.
+6. If fix is authorized and the diagnostic plan, review, or verification evidence needs a durable project document, delegate the write to a Documentation Recorder sub-agent when available; the target remains `docs/agent-os/plans/`, `docs/agent-os/reviews/`, or `docs/agent-os/verification/` in the user project.
 7. If fix is authorized, make the smallest behavior-preserving fix.
 8. Validate the failing path and relevant adjacent path.
-9. Run Documentation Gate: update troubleshooting docs, verification records, review notes, or project docs when the bug changes known behavior, setup, operations, or future diagnosis steps.
-10. Record reusable lessons when root cause is meaningful or repeatable and mutation/memory recording is authorized by the selected gates.
+9. Run Documentation Gate: decide required troubleshooting docs, verification records, review notes, or project docs updates; delegate documentation writing when available and review the diff before final response.
+10. Run Memory Gate: delegate reusable lesson recording to a Memory Recorder sub-agent when the root cause is meaningful or repeatable and mutation/memory recording is authorized by the selected gates.
 
 ## Rules
 

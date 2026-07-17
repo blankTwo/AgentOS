@@ -18,6 +18,8 @@ Do not write project execution documents under `.agent-os/`.
 
 Runtime records also do not replace Documentation Gate. If runtime activity changes user-facing setup, usage, commands, contracts, validation, troubleshooting, or Agent OS behavior, update README/docs/tool docs/installer bootstrap/tests or state why no documentation update is needed before final response.
 
+Documentation and memory writing should not block the main agent's critical path on complex work. The main agent owns the Documentation Gate / Memory Gate decision, confirmed facts, and final review. Use `documentation-recorder` and `memory-recorder` sub-agent roles to perform the actual writing and recording when sub-agents are available.
+
 ---
 
 ## Runtime Capabilities
@@ -39,7 +41,7 @@ Agent OS tracks intent, execution, verification, and learning capabilities throu
 | Compatibility Matrix | `host_adapters`, `model_runs`, `runtime-compatibility-matrix` | Report provider configuration, host adapter capabilities, and model/IDE entrypoint expectations. |
 | Governance Proposal | `improvement_reviews`, `runtime-governance-proposal` | Record rule or skill evolution proposals without auto-promoting them. |
 | Autonomous Observe Loop | `agent_observations`, `runtime-scan-capability` | Record observed file/test/build/user/project signals with evidence. |
-| Planner / Executor Separation | `agent_tasks.assigned_role`, `runtime-next` | Split planning, execution, review, verification, and memory recording responsibilities. |
+| Planner / Executor Separation | `agent_tasks.assigned_role`, `runtime-next` | Split planning, execution, review, verification, documentation recording, and memory recording responsibilities. |
 | Capability Graph | `capability_nodes`, `capability_links`, `runtime-scan-capability` | Track whether a product capability is complete, partial, broken-chain, absent, or unconfirmed. |
 | Durable Task Queue | `agent_tasks`, `runtime-next` | Track pending, in-progress, completed, blocked, and cancelled work items. |
 | Policy Engine | `policy_decisions`, `runtime-evaluate-policy` | Evaluate and record plan/TDD/review/rollback/worktree/performance decisions with rationale. |

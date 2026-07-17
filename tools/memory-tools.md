@@ -47,7 +47,9 @@ If the tool cannot run, say so in the final response and include the command tha
 
 ## Memory Recorder Sub-Agent
 
-For complex tasks, the main agent may delegate memory writing to a Memory Recorder sub-agent.
+For complex tasks, the main agent should delegate memory writing to a Memory Recorder sub-agent when memory work would slow the main execution path and sub-agents are available.
+
+The main agent decides what should be remembered and why. The Memory Recorder sub-agent performs the memory-writing work.
 
 The sub-agent should receive:
 - project slug
@@ -67,7 +69,7 @@ python scripts/memory-tools.py candidate-upsert ...
 
 The sub-agent may update Markdown memory when instructed, but must not modify business code, rules, skills, or `AGENTS.md`.
 
-The main agent must verify that the memory work completed before final response. If it did not complete, the final response must include the backfill commands.
+The main agent should continue validation, review, or response preparation while the sub-agent records memory. The main agent must verify that the memory work completed before final response. If it did not complete, the final response must include the backfill commands.
 
 ---
 

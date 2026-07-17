@@ -10,6 +10,8 @@ Runtime records do not replace durable project execution documents. If a task ne
 
 Runtime records do not replace Documentation Gate. If runtime work changes commands, setup, usage, contracts, validation, troubleshooting, or Agent OS behavior, update the relevant README/docs/tools/installer bootstrap/tests or state why documentation did not need changes.
 
+Documentation and memory writing should not block the main agent's critical path on complex work. The main agent decides what documentation or memory is required, packages confirmed facts, and verifies the result. Use `documentation-recorder` and `memory-recorder` sub-agent roles to perform the actual writing/recording when sub-agents are available.
+
 ---
 
 ## Commands

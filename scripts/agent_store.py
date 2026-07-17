@@ -447,6 +447,7 @@ def migrate_schema(conn: sqlite3.Connection) -> None:
                 'executor',
                 'reviewer',
                 'verifier',
+                'documentation-recorder',
                 'memory-recorder'
             )),
             status TEXT NOT NULL CHECK (status IN (
@@ -464,6 +465,7 @@ def migrate_schema(conn: sqlite3.Connection) -> None:
                 'executor',
                 'reviewer',
                 'verifier',
+                'documentation-recorder',
                 'memory-recorder'
             )),
             failure_type TEXT CHECK (failure_type IN (

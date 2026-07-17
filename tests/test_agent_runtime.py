@@ -2458,6 +2458,36 @@ class AgentRuntimeCliTests(unittest.TestCase):
                 conn.close()
             self.assertEqual(verification_count, 1)
 
+    def test_subagent_runtime_supports_documentation_and_memory_recorders(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = str(Path(tmp) / "runtime.db")
+            planned = self.run_cli(
+                "runtime-plan-subagents",
+                "--db",
+                db,
+                "--project",
+                "agent-os",
+                "--goal-id",
+                "goal-recorder-subagents",
+                "--run-id",
+                "run-recorder-subagents",
+                "--request",
+                "Update docs and memory without blocking the main agent.",
+                "--role",
+                "documentation-recorder",
+                "memory-recorder",
+                "--task-prefix",
+                "recorder",
+            )
+            self.assertTrue(planned["ok"])
+            self.assertEqual(
+                [item["role"] for item in planned["subagents"]],
+                ["documentation-recorder", "memory-recorder"],
+            )
+            self.assertEqual(planned["subagents"][0]["handoff_to"], "memory-recorder")
+            self.assertIn("documentation", planned["subagents"][0]["boundary"])
+            self.assertIn("memory", planned["subagents"][1]["boundary"])
+
     def test_adapter_layer_registers_host_capabilities(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

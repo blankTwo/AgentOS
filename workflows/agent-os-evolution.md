@@ -20,9 +20,9 @@ Output a structured plan before editing:
 2. Confirm the change is stable enough for a rule/workflow/skill, or keep it as a candidate.
 3. Make scoped edits.
 4. Run relevant tests and syntax/frontmatter checks.
-5. Run Documentation Gate: update README, AGENTS, context, workflows, rules, tools, installer bootstrap, and tests so public usage and model-facing behavior match the change.
+5. Run Documentation Gate: decide required README, AGENTS, context, workflows, rules, tools, installer bootstrap, and test documentation updates; delegate documentation writing when available and review the diff before final response.
 6. Run Review Gate or equivalent consistency review.
-7. Record structured memory when policy, runtime, workflow, or reusable behavior changes.
+7. Run Memory Gate: delegate structured memory recording to a Memory Recorder sub-agent when policy, runtime, workflow, or reusable behavior changes.
 
 ## Rules
 

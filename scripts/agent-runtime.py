@@ -115,7 +115,7 @@ SELF_AUDIT_STATUSES = ("open", "acknowledged", "resolved", "ignored")
 BENCHMARK_DIRECTIONS = ("lower-is-better", "higher-is-better", "equal")
 
 MODEL_PROVIDERS = ("openai", "anthropic", "google", "qwen", "deepseek", "local", "mock", "custom")
-SUBAGENT_ROLES = ("planner", "executor", "reviewer", "verifier", "memory-recorder")
+SUBAGENT_ROLES = ("planner", "executor", "reviewer", "verifier", "documentation-recorder", "memory-recorder")
 HOST_TYPES = ("codex", "claude", "qwen", "cursor", "vscode", "cli", "mcp", "custom")
 HOST_CAPABILITY_PROTOCOL = {
     "codex": {
@@ -5660,6 +5660,7 @@ def subagent_chain_for(roles: List[str]) -> list[Dict[str, Any]]:
             "executor": "Execute scoped implementation only; do not approve own work.",
             "reviewer": "Review only; inspect diff and produce findings.",
             "verifier": "Verify only; run validation plan and report evidence.",
+            "documentation-recorder": "Write assigned documentation only; do not change implementation or memory.",
             "memory-recorder": "Record durable memory only; do not change implementation.",
         }[role]
         chain.append(
@@ -12092,7 +12093,7 @@ def build_parser() -> argparse.ArgumentParser:
     runtime_record_parser.add_argument("--scale", choices=("L1", "L2", "L3", "L4"))
     runtime_record_parser.add_argument(
         "--assigned-role",
-        choices=("planner", "executor", "reviewer", "memory-recorder", "verifier"),
+        choices=SUBAGENT_ROLES,
     )
     runtime_record_parser.add_argument("--plan")
     runtime_record_parser.add_argument("--blocker")
