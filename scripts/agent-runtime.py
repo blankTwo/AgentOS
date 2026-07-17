@@ -852,6 +852,120 @@ def mission_to_runtime_intent(mission_ir: Dict[str, Any], context: Dict[str, Any
     return intent_type, mutation_authorization, confidence
 
 
+def visible_intent_for(
+    mission_ir: Dict[str, Any],
+    compiler_metadata: Dict[str, Any],
+    runtime_mapping: Dict[str, Any],
+) -> Dict[str, Any]:
+    source = mission_ir.get("source", {})
+    compiler = str(compiler_metadata.get("compiler") or source.get("compiler") or "builtin-rules")
+    provider = compiler_metadata.get("provider")
+    model = compiler_metadata.get("model")
+    fallback = bool(compiler_metadata.get("fallback", source.get("fallback", False)))
+    compiler_mode = "llm" if compiler.startswith("llm:") or compiler == "provided-llm-output" else "builtin-rules"
+    constraints = mission_ir.get("constraints", {})
+    mission = mission_ir.get("mission", {})
+    permission_label = "只读" if constraints.get("readonly") or not constraints.get("allowWrite") else "允许写入"
+    if constraints.get("allowCommit"):
+        permission_label += "，允许提交"
+    if constraints.get("allowDeploy"):
+        permission_label += "，允许部署"
+    if constraints.get("requireApprovalBeforeMutation"):
+        permission_label += "，写入前需确认"
+
+    if compiler_mode == "llm":
+        compiler_label = f"LLM Semantic Compiler（{provider or compiler.replace('llm:', '')}"
+        if model:
+            compiler_label += f" / {model}"
+        compiler_label += "）"
+    else:
+        compiler_label = "本地规则算法"
+    fallback_label = "已回退" if fallback else "未回退"
+    summary = (
+        f"Agent OS：意图编译已生效，编译器={compiler_label}，{fallback_label}；"
+        f"任务={mission.get('type', 'unknown')}，模式={mission.get('mode', 'unknown')}，权限={permission_label}。"
+    )
+    return {
+        "format": "intent-summary/v1",
+        "title": "Agent OS：意图编译已生效",
+        "summary": summary,
+        "conversation_hint": summary,
+        "compiler": {
+            "mode": compiler_mode,
+            "compiler": compiler,
+            "provider": provider,
+            "model": model,
+            "fallback": fallback,
+        },
+        "mission": {
+            "type": mission.get("type"),
+            "mode": mission.get("mode"),
+            "intent_type": runtime_mapping.get("intent_type"),
+            "mutation_authorization": runtime_mapping.get("mutation_authorization"),
+            "confidence": runtime_mapping.get("confidence"),
+        },
+        "permissions": {
+            "readonly": bool(constraints.get("readonly")),
+            "allow_write": bool(constraints.get("allowWrite")),
+            "allow_commit": bool(constraints.get("allowCommit")),
+            "allow_deploy": bool(constraints.get("allowDeploy")),
+            "require_approval_before_mutation": bool(constraints.get("requireApprovalBeforeMutation")),
+            "label": permission_label,
+        },
+    }
+
+
+def visible_plan_for_tasks(
+    tasks: List[Dict[str, Any]],
+    context: Dict[str, Any],
+    *,
+    capability_status: Optional[str] = None,
+    title: str = "Agent OS：执行计划",
+) -> Dict[str, Any]:
+    items = []
+    markdown_lines = [title]
+    for index, task in enumerate(tasks, start=1):
+        status = str(task.get("status") or "pending")
+        checked = "x" if status == "completed" else " "
+        item_title = str(task.get("title") or f"Task {index}")
+        layer = str(task.get("task_layer") or "")
+        role = str(task.get("assigned_role") or "")
+        suffix_parts = [part for part in (layer, role) if part]
+        suffix = f"（{' / '.join(suffix_parts)}）" if suffix_parts else ""
+        markdown_lines.append(f"- [{checked}] {item_title}{suffix}")
+        items.append(
+            {
+                "order": index,
+                "status": status,
+                "title": item_title,
+                "task_layer": layer,
+                "assigned_role": role,
+                "plan": task.get("plan", ""),
+            }
+        )
+    validation = "按 Validation Gate 执行并记录结果。"
+    if any(task.get("task_layer") == "Test" for task in tasks):
+        validation = "执行计划内验证任务，并在完成前说明验证结果与剩余风险。"
+    markdown_lines.append(f"\n验证：{validation}")
+    if capability_status:
+        markdown_lines.append(f"能力链路状态：{capability_status}")
+    return {
+        "format": "markdown-checklist/v1",
+        "title": title,
+        "scale": context.get("scale"),
+        "task_layers": context.get("task_layers", []),
+        "capability_status": capability_status,
+        "items": items,
+        "markdown": "\n".join(markdown_lines),
+        "host_adapters": {
+            "codex": "Use update_plan when available; otherwise show markdown.",
+            "claude": "Use TodoWrite when available; otherwise show markdown.",
+            "cursor_qwen_qoder": "Show markdown checklist and write runtime/output logs when available.",
+            "vscode_plugin": "Render in Output and dashboard/panel when available.",
+        },
+    }
+
+
 def compile_mission_builtin(context: Dict[str, Any], *, fallback: bool = False, reason: Optional[str] = None) -> Dict[str, Any]:
     raw = builtin_mission_ir(context)
     raw.setdefault("source", {})["fallbackReason"] = reason
@@ -3872,6 +3986,13 @@ def cmd_runtime_detect_intent(args: argparse.Namespace) -> None:
     context["compiler_metadata"] = {
         key: value for key, value in compiler_metadata.items() if key != "raw_response"
     }
+    intent_type, mutation_authorization, confidence = mission_to_runtime_intent(mission_ir, context)
+    runtime_mapping = {
+        "intent_type": intent_type,
+        "mutation_authorization": mutation_authorization,
+        "confidence": confidence,
+    }
+    visible_intent = visible_intent_for(mission_ir, compiler_metadata, runtime_mapping)
     state = intent_state_from_context(
         context,
         goal_id=args.goal_id,
@@ -3904,6 +4025,7 @@ def cmd_runtime_detect_intent(args: argparse.Namespace) -> None:
             "context": context,
             "mission_ir": mission_ir,
             "compiler_metadata": compiler_metadata,
+            "visible_intent": visible_intent,
             "intent": state,
         }
     )
@@ -3924,18 +4046,21 @@ def cmd_runtime_compile_mission(args: argparse.Namespace) -> None:
         no_fallback=args.no_fallback,
     )
     intent_type, mutation_authorization, confidence = mission_to_runtime_intent(mission_ir, context)
+    runtime_mapping = {
+        "intent_type": intent_type,
+        "mutation_authorization": mutation_authorization,
+        "confidence": confidence,
+    }
+    visible_intent = visible_intent_for(mission_ir, compiler_metadata, runtime_mapping)
     print_json(
         {
             "ok": True,
             "context": context,
             "mission_ir": mission_ir,
             "locked": True,
-            "runtime_mapping": {
-                "intent_type": intent_type,
-                "mutation_authorization": mutation_authorization,
-                "confidence": confidence,
-            },
+            "runtime_mapping": runtime_mapping,
             "compiler_metadata": compiler_metadata,
+            "visible_intent": visible_intent,
         }
     )
 
@@ -4539,6 +4664,7 @@ def cmd_kernel_step(args: argparse.Namespace) -> None:
         signals=policy_signals,
     )
     tasks = plan_tasks_for(context, capability_status)
+    visible_plan = visible_plan_for_tasks(tasks, context, capability_status=capability_status)
     skills = recommend_skills(context["task_layers"], context["stack"])
     checks = verification_checks_for(context["task_layers"], context["scale"], context["files"])
     next_action = "start-task"
@@ -4755,6 +4881,7 @@ def cmd_kernel_step(args: argparse.Namespace) -> None:
             "capability_status": capability_status,
             "decisions": decisions,
             "tasks": tasks,
+            "visible_plan": visible_plan,
             "skills": skills,
             "verification_checks": checks,
             "next_action": next_action,
@@ -4917,6 +5044,7 @@ def cmd_runtime_plan_tasks(args: argparse.Namespace) -> None:
         "files": args.files or [],
     }
     tasks = plan_tasks_for(context, args.capability_status)
+    visible_plan = visible_plan_for_tasks(tasks, context, capability_status=args.capability_status)
     created: List[str] = []
     if args.record:
         with connect(args.db) as conn:
@@ -4956,7 +5084,15 @@ def cmd_runtime_plan_tasks(args: argparse.Namespace) -> None:
                 )
                 created.append(task_id)
             conn.commit()
-    print_json({"ok": True, "project": args.project, "tasks": tasks, "created_task_ids": created})
+    print_json(
+        {
+            "ok": True,
+            "project": args.project,
+            "tasks": tasks,
+            "visible_plan": visible_plan,
+            "created_task_ids": created,
+        }
+    )
 
 
 def cmd_runtime_complete_task(args: argparse.Namespace) -> None:
@@ -9565,6 +9701,7 @@ def cmd_runtime_run(args: argparse.Namespace) -> None:
         signals=policy_signals,
     )
     tasks = plan_tasks_for(context, capability_status)
+    visible_plan = visible_plan_for_tasks(tasks, context, capability_status=capability_status)
     skills = recommend_skills(context["task_layers"], context["stack"])
     checks = verification_checks_for(context["task_layers"], context["scale"], context["files"])
     recovery_strategy = None
@@ -9838,6 +9975,7 @@ def cmd_runtime_run(args: argparse.Namespace) -> None:
             },
             "decisions": decisions,
             "tasks": tasks,
+            "visible_plan": visible_plan,
             "skills": skills,
             "verification_checks": checks,
             "recovery_strategy": recovery_strategy,
@@ -9861,6 +9999,7 @@ def cmd_runtime_orchestrate(args: argparse.Namespace) -> None:
         signals=list(dict.fromkeys((args.signal or []) + workspace_risk_signals(context["files"]))),
     )
     tasks = plan_tasks_for(context, capability_status)
+    visible_plan = visible_plan_for_tasks(tasks, context, capability_status=capability_status)
     skills = recommend_skills(context["task_layers"], context["stack"], args.request)
     checks = verification_checks_for(context["task_layers"], context["scale"], context["files"])
     subagent_chain = subagent_chain_for(["planner", "executor", "reviewer", "verifier"])
@@ -10197,6 +10336,7 @@ def cmd_runtime_orchestrate(args: argparse.Namespace) -> None:
             "model_run_id": model_id,
             "verification_id": verification_id,
             "trace_id": trace_id,
+            "visible_plan": visible_plan,
             "trace": trace,
         }
     )

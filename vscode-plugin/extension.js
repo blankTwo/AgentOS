@@ -152,6 +152,39 @@ function logMissionBreakdown(context, missionIr = {}) {
   channel.appendLine(`  来源：${source.compiler || "未知"}；回退：${source.fallback ? "是" : "否"}`);
 }
 
+function logVisibleIntent(context, visibleIntent = {}) {
+  if (!visibleIntent || !visibleIntent.summary) {
+    return;
+  }
+  const channel = getOutputChannel(context);
+  channel.appendLine(`[${timestamp()}] [Intent Compiler] ${visibleIntent.summary}`);
+  const compiler = visibleIntent.compiler || {};
+  const mission = visibleIntent.mission || {};
+  const permissions = visibleIntent.permissions || {};
+  channel.appendLine(
+    `  编译器：${compiler.mode || "未知"}；服务商：${compiler.provider || "-"}；模型：${compiler.model || "-"}；回退：${compiler.fallback ? "是" : "否"}`,
+  );
+  channel.appendLine(
+    `  任务：${mission.type || "未知"}；模式：${mission.mode || "未知"}；授权：${mission.mutation_authorization || "未知"}；权限：${permissions.label || "未知"}`,
+  );
+}
+
+function logVisiblePlan(context, visiblePlan = {}) {
+  if (!visiblePlan || !Array.isArray(visiblePlan.items)) {
+    return;
+  }
+  const channel = getOutputChannel(context);
+  channel.appendLine(`[${timestamp()}] [Plan Renderer] ${visiblePlan.title || "Agent OS 执行计划"}`);
+  channel.appendLine(
+    `  规模：${visiblePlan.scale || "未知"}；任务层：${formatListForLog(visiblePlan.task_layers)}；能力链路：${visiblePlan.capability_status || "未指定"}`,
+  );
+  for (const item of visiblePlan.items) {
+    const checked = item.status === "completed" ? "x" : " ";
+    const meta = [item.task_layer, item.assigned_role].filter(Boolean).join(" / ");
+    channel.appendLine(`  - [${checked}] ${item.title}${meta ? `（${meta}）` : ""}`);
+  }
+}
+
 function intentCompilerConfig() {
   const config = vscode.workspace.getConfiguration("agentOS.intentCompiler");
   return {
@@ -533,7 +566,9 @@ async function compileMissionWithRuntime(context, requestText, options = {}) {
       missionType: mission.type,
       missionMode: mission.mode,
     });
+    logVisibleIntent(context, parsed.visible_intent || {});
     logMissionBreakdown(context, parsed.mission_ir || {});
+    logVisiblePlan(context, parsed.visible_plan || {});
     return parsed;
   } catch (error) {
     logIntentCompiler(context, "Mission IR 编译失败：Runtime 输出不是合法 JSON。", {
@@ -1414,10 +1449,35 @@ function registerCommands(context) {
       await openIntentCompilerConfigPanel(context);
     }),
     vscode.commands.registerCommand("agentOs.testIntentCompiler", async (overrides = {}) => {
-      const result = await testIntentCompilerConnection(context, overrides);
+      const connectionResult = await testIntentCompilerConnection(context, overrides);
       const channel = getOutputChannel(context);
-      channel.appendLine("Agent OS 意图编译器测试：");
-      channel.appendLine(JSON.stringify(result, null, 2));
+      channel.appendLine(`[${timestamp()}] [Intent Compiler] 意图编译器测试完成。`);
+      channel.appendLine(`  连接测试：${connectionResult.ok ? "通过" : "失败"}。`);
+      let result = connectionResult;
+      if (connectionResult.ok) {
+        const compileResult = await compileMissionWithRuntime(
+          context,
+          "用户反馈第一次检测原创度0，第二次检测就好了，你好好排查一下",
+          { projectName: "intent-compiler-test" },
+        );
+        result = {
+          ok: Boolean(compileResult.ok),
+          connection: connectionResult,
+          mission: compileResult.ok
+            ? {
+                type: compileResult.mission_ir?.mission?.type,
+                mode: compileResult.mission_ir?.mission?.mode,
+                compiler: compileResult.visible_intent?.compiler,
+                permissions: compileResult.visible_intent?.permissions,
+              }
+            : {
+                error: compileResult.error,
+              },
+        };
+        channel.appendLine(`  Mission IR 编译：${compileResult.ok ? "通过" : "失败"}。`);
+      } else {
+        channel.appendLine(`  Mission IR 编译：已跳过，原因是连接测试失败。`);
+      }
       vscode.window.showInformationMessage(result.ok ? "意图编译器测试完成。" : "意图编译器测试失败。");
       channel.show(true);
       if (statusProvider) {

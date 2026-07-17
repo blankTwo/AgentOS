@@ -483,6 +483,11 @@ class AgentRuntimeCliTests(unittest.TestCase):
         self.assertFalse(result["mission_ir"]["constraints"]["allowWrite"])
         self.assertEqual(result["runtime_mapping"]["intent_type"], "diagnosis")
         self.assertEqual(result["runtime_mapping"]["mutation_authorization"], "read-only")
+        self.assertEqual(result["visible_intent"]["format"], "intent-summary/v1")
+        self.assertIn("意图编译已生效", result["visible_intent"]["summary"])
+        self.assertEqual(result["visible_intent"]["compiler"]["mode"], "builtin-rules")
+        self.assertEqual(result["visible_intent"]["mission"]["mutation_authorization"], "read-only")
+        self.assertFalse(result["visible_intent"]["permissions"]["allow_write"])
 
     def test_runtime_compile_mission_normalizes_markdown_llm_output(self) -> None:
         llm_response = """```json
@@ -537,6 +542,32 @@ class AgentRuntimeCliTests(unittest.TestCase):
         self.assertTrue(result["compiler_metadata"]["fallback"])
         self.assertEqual(result["mission_ir"]["mission"]["type"], "diagnose")
         self.assertFalse(result["mission_ir"]["constraints"]["allowWrite"])
+        self.assertTrue(result["visible_intent"]["compiler"]["fallback"])
+        self.assertIn("已回退", result["visible_intent"]["summary"])
+
+    def test_runtime_plan_tasks_returns_visible_markdown_checklist(self) -> None:
+        result = self.run_cli(
+            "runtime-plan-tasks",
+            "--project",
+            "agent-os",
+            "--goal-id",
+            "goal-phone-login",
+            "--request",
+            "实现手机号登录",
+            "--scale",
+            "L3",
+            "--capability-status",
+            "broken-chain",
+        )
+        self.assertTrue(result["ok"], result)
+        visible_plan = result["visible_plan"]
+        self.assertEqual(visible_plan["format"], "markdown-checklist/v1")
+        self.assertEqual(visible_plan["scale"], "L3")
+        self.assertEqual(visible_plan["capability_status"], "broken-chain")
+        self.assertIn("Agent OS：执行计划", visible_plan["markdown"])
+        self.assertIn("- [ ] Confirm context, task layer, and scale", visible_plan["markdown"])
+        self.assertIn("验证：", visible_plan["markdown"])
+        self.assertEqual(len(visible_plan["items"]), len(result["tasks"]))
 
     def test_intent_runtime_blocks_read_only_mutation_and_records_loop_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

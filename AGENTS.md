@@ -274,6 +274,12 @@ Rules:
 - A read-only local authorization decision cannot be widened by LLM output.
 - `readonly=true` or `allowWrite=false` blocks write, patch, delete, commit, deploy, docs, and memory mutations until explicit user approval.
 
+Visibility:
+- After Mission IR is locked, show a lightweight user-visible intent summary before execution when the task is not trivial.
+- The summary must state whether the compiler was `LLM` or `builtin-rules`, whether fallback happened, the mission type/mode, and the locked write permission.
+- If the runtime returns `visible_intent`, use its `conversation_hint` or `summary` as the source of truth.
+- Do not expose raw Mission IR JSON, API keys, raw prompts, or provider secrets in the conversation or Output logs.
+
 ### Language Boundary
 Agent OS model-facing files should use English by default:
 - `AGENTS.md`
@@ -378,6 +384,17 @@ A structured plan must include:
 For high-risk work, also include recovery/rollback and Review Gate decision when applicable.
 
 If scale is unclear, treat it as the higher level. Do not default to L1 because the request is short.
+
+Visible plan renderer:
+- Runtime task queues are internal operating state; they do not replace a visible plan.
+- For L2+ tasks, show a checklist-style plan in the conversation before editing files.
+- If the runtime returns `visible_plan.markdown`, use it as the default visible plan and adapt wording only when needed for clarity.
+- Host adapters may enhance the visible plan, but must not hide it:
+  - Codex: use the plan/todo UI when available, plus a concise user-visible summary.
+  - Claude: use TodoWrite when available, plus a concise user-visible summary.
+  - Cursor, Qwen, Qoder, and unknown hosts: show the Markdown checklist directly.
+  - VSCode plugin: log the same plan to the Agent OS Output channel or panel when available.
+- The agent must update visible plan status as work progresses when the host provides a plan/todo UI. If no host UI exists, summarize progress in short status updates.
 
 ### Agent Runtime Gate
 When a task spans steps, files, layers, or turns, decide whether to use Agent Runtime controllers and records.

@@ -6,6 +6,12 @@ Use `scripts/agent-runtime.py` for intent state, execution gates, feedback/drift
 
 Runtime records do not replace user-visible workflow output. If a workflow requires intent, diagnostic plan, structured plan, recovery, or review decision, show it in the conversation before editing files.
 
+Runtime visibility fields are designed for that handoff:
+- `visible_intent`: safe user-facing Mission IR activation summary.
+- `visible_plan`: Markdown checklist generated from runtime task planning.
+
+Use these fields in conversation, host todo UI, VSCode Output, or dashboards. Do not show raw Mission IR JSON, prompts, API keys, or provider secrets unless the user explicitly asks for raw debugging data.
+
 Runtime records do not replace durable project execution documents. If a task needs a saved implementation plan, task breakdown, decision record, review, or verification report, write it to the user project's `docs/agent-os/` directory, not to `.agent-os/`.
 
 Runtime records do not replace Documentation Gate. If runtime work changes commands, setup, usage, contracts, validation, troubleshooting, or Agent OS behavior, update the relevant README/docs/tools/installer bootstrap/tests or state why documentation did not need changes.
@@ -243,6 +249,14 @@ python scripts/agent-runtime.py runtime-compile-mission \
 
 The LLM produces Draft Mission IR only. Runtime then strips Markdown code fences, parses JSON, validates and normalizes fields, tightens permissions, and returns Locked Mission IR. If the LLM fails, times out, returns bad JSON, or expands a read-only request into mutation, runtime falls back to builtin rules unless `--no-fallback` is used.
 
+The command returns `visible_intent` so the user can see whether the Intent LLM is active:
+
+```text
+Agent OS：意图编译已生效，编译器=LLM Semantic Compiler（custom / gemini-3-flash），未回退；任务=diagnose，模式=readonly，权限=只读，写入前需确认。
+```
+
+Use this summary in the conversation or Agent OS Output channel. If LLM compilation fails, the same field must make the builtin fallback visible.
+
 Read-only diagnosis should lock to:
 
 ```json
@@ -469,7 +483,7 @@ python scripts/agent-runtime.py runtime-plan-tasks \
 
 This creates planner, executor, verifier, and reviewer task records with order indexes.
 
-These task records are not the user-visible plan. After running this command, summarize the applicable workflow plan or intent to the user before implementation.
+These task records are not the user-visible plan. The command returns `visible_plan.markdown`; for L2+ work, show that checklist to the user before implementation. Host adapters may mirror the same items into a native todo UI, but the fallback is always Markdown in the conversation.
 
 ---
 

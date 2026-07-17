@@ -7,6 +7,12 @@ It does not create an always-on background agent. Runtime actions are explicit, 
 
 Runtime records never replace user-visible workflow output. If the selected workflow requires execution intent, a diagnostic plan, a structured plan, recovery strategy, or review decision, the agent must show it to the user before implementation.
 
+Runtime visibility fields are the bridge between internal state and user-visible output:
+- `visible_intent`: a safe summary of Mission IR compiler mode, fallback state, mission type/mode, and locked permissions.
+- `visible_plan`: a Markdown checklist plan generated from runtime task planning.
+
+Use these fields as display sources when they are available. They are designed for conversation, VSCode Output, dashboard panels, and host todo adapters. Do not show raw Mission IR JSON unless the user explicitly asks for it.
+
 Runtime records also do not replace durable project execution documents. When a task needs a lasting implementation plan, task breakdown, decision record, review, or verification report, write it under the user project's `docs/agent-os/` directory:
 - `docs/agent-os/plans/`
 - `docs/agent-os/tasks/`
@@ -113,7 +119,7 @@ Runtime controllers convert gate decisions into explicit command outputs:
 
 Controllers may run in dry output mode or with `--record` to write runtime records. Recorded controller output is evidence, not a substitute for code inspection, real validation, or user-visible workflow output.
 
-`runtime-run`, `runtime-plan-tasks`, and policy records can prepare the operating loop, but the agent still must summarize the applicable workflow intent or plan in the conversation before editing files.
+`runtime-run`, `runtime-plan-tasks`, and policy records can prepare the operating loop, but the agent still must summarize the applicable workflow intent or plan in the conversation before editing files. If `visible_plan.markdown` is returned, use it as the default visible plan for L2+ work.
 
 For diagnosis-like requests, Runtime must preserve the Mutation Authorization Gate decision. A `mutation_authorization=read-only` context means the runtime may guide investigation, evidence collection, and recommended fixes, but must not be used as permission to edit source, tests, docs, config, or project memory.
 
@@ -157,6 +163,12 @@ Policy decisions should be recorded when they affect execution mode or risk cont
 Every policy decision needs rationale and evidence. A policy record does not replace the actual plan or validation summary.
 
 When a policy decision affects execution mode, TDD, review, rollback, worktree, or performance checks, the user-visible workflow output must include the relevant decision before implementation.
+
+Host plan adapters:
+- Codex: mirror `visible_plan.items` into the plan UI when available and keep it updated.
+- Claude: mirror `visible_plan.items` into TodoWrite when available.
+- Cursor, Qwen, Qoder, and unknown hosts: print `visible_plan.markdown` in the conversation.
+- VSCode plugin: print `visible_intent.summary` and `visible_plan.items` in the Agent OS Output channel.
 
 ---
 

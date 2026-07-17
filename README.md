@@ -46,6 +46,7 @@ python <your-project>/.agent-os/scripts/agent-os.py version --root <your-project
 | Mutation Authorization Gate | 区分只读排查和授权修改，排查/分析/定位原因默认不改文件 |
 | Mission IR Compiler | 将自然语言编译为 Mission IR；可使用本地规则或插件配置的 LLM |
 | Mission Optimizer | 清洗、校验、归一化 Mission IR，并收紧权限生成 Locked Mission IR |
+| Intent Visibility | 在对话或 VSCode Output 中显示编译器、回退状态、任务模式和权限锁定 |
 | Intent Runtime | 记录结构化意图、授权状态、置信度、风险、允许动作和阻断动作 |
 | Execution Gate | 写入、补丁、提交、部署、memory/docs 更新前做硬门校验 |
 | Feedback Loop | 记录反馈、检测 drift、重新锚定用户意图，并保存计划版本 |
@@ -58,6 +59,7 @@ python <your-project>/.agent-os/scripts/agent-os.py version --root <your-project
 | Compatibility Matrix | 汇总模型 provider、IDE/host adapter、入口文件和缺失能力 |
 | Governance Proposal | 规则、skill 升级只能进入人工 review，不自动提升 |
 | Planning Gate | 决定直接执行、短计划还是完整计划 |
+| Visible Plan Renderer | 将 Runtime 任务队列渲染为用户可见 checklist，避免“计划已定但用户看不到” |
 | Capability Discovery | 判断功能链路是完整、半套、断链、缺失还是未确认 |
 | Agent Runtime | 记录 goal、task、policy、intent、action、feedback、verification、recovery、trace |
 | Documentation Gate | 判断 README or docs、`docs/agent-os/`、memory 是否需要同步 |
@@ -92,6 +94,14 @@ python scripts/agent-runtime.py runtime-compile-mission \
 ```
 
 只读诊断会被锁定为 `diagnose + readonly + allowWrite=false`。如果 LLM 超时、返回 Markdown 包裹、坏 JSON、字段不合规或上游 502，Runtime 会清洗和归一化；无法恢复时自动回退本地规则算法。
+
+Runtime 会返回 `visible_intent`，用于在对话或 VSCode Output 中提示：
+
+```text
+Agent OS：意图编译已生效，编译器=LLM Semantic Compiler（custom / model），未回退；任务=diagnose，模式=readonly，权限=只读，写入前需确认。
+```
+
+L2+ 任务会返回 `visible_plan.markdown`，宿主支持 todo/plan UI 时可以同步展示；不支持时必须直接在对话中显示 Markdown checklist。
 
 ## 执行门控强制化(PEP)
 
